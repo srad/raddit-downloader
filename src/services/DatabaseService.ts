@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import { LoggerService } from '../services/LoggerService';
 import { RedditPost } from '../types';
 import { singleton, inject } from 'tsyringe';
+import { DATA_DIR } from '../config/constants';
 
 export interface DownloadRecord {
   id: number;
@@ -18,9 +19,13 @@ export interface DownloadRecord {
 @singleton()
 export class DatabaseService {
   private db: sqlite3.Database;
-  private readonly DB_PATH = path.join(__dirname, '../../history.db');
+  private readonly DB_PATH = path.join(DATA_DIR, 'history.db');
 
   constructor(@inject(LoggerService) private loggerService: LoggerService) {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+
     this.db = new sqlite3.Database(this.DB_PATH, (err) => {
       if (err) {
         this.loggerService.log(`ERROR: Could not connect to database: ${err.message}`, true);

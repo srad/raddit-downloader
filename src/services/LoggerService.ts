@@ -3,7 +3,7 @@ import * as path from 'path';
 import chalk from 'chalk';
 import { injectable, inject } from 'tsyringe';
 import { Config as ConfigType } from '../types';
-import { ALL_POSTS as ALL_POSTS_CONST } from '../config/constants';
+import { ALL_POSTS as ALL_POSTS_CONST, DATA_DIR } from '../config/constants';
 import { ValidationResult } from './ConfigService';
 import { CONFIG_TOKEN } from '../config/tokens';
 
@@ -11,7 +11,7 @@ import { CONFIG_TOKEN } from '../config/tokens';
 export class LoggerService {
   private userLogs = '';
   private dateString: string;
-  private readonly LOGS_DIR = path.join(__dirname, '../../logs');
+  private readonly LOGS_DIR = path.join(DATA_DIR, 'logs');
   private readonly LOG_FORMAT = 'txt';
 
   constructor(@inject(CONFIG_TOKEN) private config: ConfigType) {

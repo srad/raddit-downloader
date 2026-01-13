@@ -1,7 +1,8 @@
 import { Config, DownloadStats, State } from '../types';
-import { ALL_POSTS } from '../config/constants';
+import { ALL_POSTS, DATA_DIR } from '../config/constants';
 import { singleton, inject } from 'tsyringe';
 import { CONFIG_TOKEN } from '../config/tokens';
+import * as path from 'path';
 
 @singleton()
 export class StateService implements State {
@@ -11,7 +12,7 @@ export class StateService implements State {
   time: string = 'all';
   repeatForever: boolean = false;
   timeBetweenRuns: number = 0;
-  downloadDirectoryBase: string = './downloads';
+  downloadDirectoryBase: string = path.join(DATA_DIR, 'downloads');
   currentSubredditIndex: number = 0;
   responseSize: number = -1;
   startTime: Date | null = null;
