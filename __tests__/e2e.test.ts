@@ -33,7 +33,8 @@ const TEST_CONFIG: Config = {
 		showTitle: true,
 	},
     download_post_list_options: { enabled: false, repeatForever: false, timeBetweenRuns: 0 },
-    local_logs_naming_scheme: { showDateAndTime: false, showSubreddits: false, showNumberOfPosts: false }
+    local_logs_naming_scheme: { showDateAndTime: false, showSubreddits: false, showNumberOfPosts: false },
+    group_gallery_images: false,
 };
 
 jest.setTimeout(60000);

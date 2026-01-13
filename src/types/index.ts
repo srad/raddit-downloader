@@ -73,6 +73,7 @@ export interface Config {
   download_comments?: boolean;
   download_youtube_videos_experimental?: boolean;
   use_history_database?: boolean;
+  group_gallery_images?: boolean;
   [key: string]: any;
 }
 
