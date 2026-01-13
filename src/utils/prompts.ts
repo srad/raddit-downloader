@@ -2,20 +2,30 @@
  * User prompts/CLI interface
  */
 
-const prompts = require('prompts');
+import prompts from 'prompts';
+
+export interface PromptAnswers {
+	subreddit: string;
+	numberOfPosts: number;
+	sorting: string;
+	time: string;
+	repeatForever: boolean;
+	timeBetweenRuns?: number;
+	downloadDirectory?: string;
+}
 
 /**
  * Prompt user for download settings
- * @returns {Promise<Object>} - User's answers
+ * @returns - User's answers
  */
-async function promptForSettings() {
-	const questions = [
+export async function promptForSettings(): Promise<PromptAnswers> {
+	const questions: prompts.PromptObject[] = [
 		{
 			type: 'text',
 			name: 'subreddit',
 			message:
 				'Which subreddits or users would you like to download? You may submit multiple separated by commas (no spaces).',
-			validate: (value) =>
+			validate: (value: string) =>
 				value.length < 1 ? `Please enter at least one subreddit or user` : true,
 		},
 		{
@@ -24,7 +34,7 @@ async function promptForSettings() {
 			message:
 				'How many posts would you like to attempt to download? If you would like to download all posts, enter 0.',
 			initial: 0,
-			validate: (value) => (!isNaN(value) ? true : `Please enter a number`),
+			validate: (value: any) => (!isNaN(value) ? true : `Please enter a number`),
 		},
 		{
 			type: 'text',
@@ -32,7 +42,7 @@ async function promptForSettings() {
 			message:
 				'How would you like to sort? (top, new, hot, rising, controversial)',
 			initial: 'top',
-			validate: (value) =>
+			validate: (value: string) =>
 				['top', 'new', 'hot', 'rising', 'controversial'].includes(
 					value.toLowerCase(),
 				)
@@ -44,7 +54,7 @@ async function promptForSettings() {
 			name: 'time',
 			message: 'During what time period? (hour, day, week, month, year, all)',
 			initial: 'month',
-			validate: (value) =>
+			validate: (value: string) =>
 				['hour', 'day', 'week', 'month', 'year', 'all'].includes(
 					value.toLowerCase(),
 				)
@@ -60,7 +70,7 @@ async function promptForSettings() {
 			inactive: 'no',
 		},
 		{
-			type: (prev) => (prev === true ? 'number' : null),
+			type: (prev: any) => (prev === true ? 'number' : null),
 			name: 'timeBetweenRuns',
 			message: 'How often would you like to run this? (in ms)',
 		},
@@ -72,10 +82,5 @@ async function promptForSettings() {
 		},
 	];
 
-	return await prompts(questions);
+	return await prompts(questions) as PromptAnswers;
 }
-
-module.exports = {
-	promptForSettings,
-};
-

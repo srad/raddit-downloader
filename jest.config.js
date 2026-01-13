@@ -1,7 +1,9 @@
+/** @type {import('ts-jest').JestConfigWithTsJest} */
 module.exports = {
+	preset: 'ts-jest',
 	testEnvironment: 'node',
-	testMatch: ['**/__tests__/**/*.test.js'],
-	collectCoverageFrom: ['lib/**/*.js', 'index.js'],
+	testMatch: ['**/__tests__/**/*.test.ts'],
+	collectCoverageFrom: ['src/lib/**/*.ts', 'src/index.ts'],
 	coveragePathIgnorePatterns: ['/node_modules/', '/__tests__/'],
 	verbose: true,
 	testTimeout: 60000,
@@ -9,12 +11,14 @@ module.exports = {
 	projects: [
 		{
 			displayName: 'unit',
-			testMatch: ['**/__tests__/utils.test.js'],
+			preset: 'ts-jest',
+			testMatch: ['**/__tests__/utils.test.ts'],
 			testEnvironment: 'node',
 		},
 		{
 			displayName: 'e2e',
-			testMatch: ['**/__tests__/e2e.test.js'],
+			preset: 'ts-jest',
+			testMatch: ['**/__tests__/e2e.test.ts'],
 			testEnvironment: 'node',
 		},
 	],

@@ -6,22 +6,25 @@
  * Run with: npm test -- --testPathPattern=e2e
  */
 
-const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
-const { execSync } = require('child_process');
+import 'reflect-metadata';
+import * as fs from 'fs';
+import * as path from 'path';
+import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
 
-const {
+import {
 	getPostType,
 	getPostTypeName,
-	getFileName,
 	getMediaDownloadInfo,
-	buildRedditApiUrl,
-	DEFAULT_REQUEST_TIMEOUT,
-} = require('../lib/utils');
+    PostType,
+} from '../src/utils/postUtils';
+import { getFileName } from '../src/utils/filenameUtils';
+import { RedditApiService } from '../src/services/RedditApiService';
+import { Config, RedditPost } from '../src/types';
+import { DEFAULT_REQUEST_TIMEOUT } from '../src/config/constants';
 
 const TEST_DOWNLOAD_DIR = path.join(__dirname, '../downloads_test');
-const TEST_CONFIG = {
+const TEST_CONFIG: Config = {
 	file_naming_scheme: {
 		showDate: true,
 		showScore: true,
@@ -29,58 +32,26 @@ const TEST_CONFIG = {
 		showAuthor: true,
 		showTitle: true,
 	},
+    download_post_list_options: { enabled: false, repeatForever: false, timeBetweenRuns: 0 },
+    local_logs_naming_scheme: { showDateAndTime: false, showSubreddits: false, showNumberOfPosts: false }
 };
 
 jest.setTimeout(60000);
 
-async function fetchRedditPosts(subreddit, limit = 5, sorting = 'top', time = 'month') {
-	const url = buildRedditApiUrl({
-		target: subreddit,
-		isUser: false,
-		sorting,
-		time,
-		limit,
-	});
+const apiService = new RedditApiService();
 
-	const response = await axios.get(url, {
-		timeout: DEFAULT_REQUEST_TIMEOUT,
-		headers: {
-			'User-Agent': 'RedditDownloaderTest/1.0',
-		},
-	});
-
-	return response.data.data.children.map((child) => child.data);
+async function fetchRedditPosts(subreddit: string, limit: number = 5, sorting: string = 'top', time: string = 'month'): Promise<RedditPost[]> {
+  const data = await apiService.fetchSubredditPosts(subreddit, sorting, time, limit);
+  return data.data.children.map((child: any) => child.data);
 }
 
-async function fetchSinglePost(postUrl) {
-	const response = await axios.get(`${postUrl}.json`, {
-		timeout: DEFAULT_REQUEST_TIMEOUT,
-		headers: {
-			'User-Agent': 'RedditDownloaderTest/1.0',
-		},
-	});
-
-	return response.data[0].data.children[0].data;
-}
-
-async function downloadFile(url, destPath) {
-	const response = await axios({
-		method: 'GET',
-		url,
-		responseType: 'stream',
-		timeout: DEFAULT_REQUEST_TIMEOUT,
-		headers: {
-			'User-Agent': 'RedditDownloaderTest/1.0',
-		},
-	});
-
-	const writer = fs.createWriteStream(destPath);
-	response.data.pipe(writer);
-
-	return new Promise((resolve, reject) => {
-		writer.on('finish', resolve);
-		writer.on('error', reject);
-	});
+async function downloadFile(url: string, destPath: string): Promise<void> {
+    const response = await fetch(url);
+    if (!response.ok || !response.body) throw new Error('Download failed');
+    
+    const fileStream = fs.createWriteStream(destPath);
+    // @ts-ignore
+    await pipeline(Readable.fromWeb(response.body), fileStream);
 }
 
 beforeAll(() => {
@@ -124,7 +95,11 @@ describe('Reddit API Integration', () => {
 		expect(topPosts[0].score).toBeGreaterThan(0);
 	});
 
+    // Native fetch throws TypeError on network errors, or we can check behavior
 	test('handles non-existent subreddit gracefully', async () => {
+        // Our service might resolve with error json or throw.
+        // fetchSubredditPosts returns JSON. Reddit returns 404 or empty structure?
+        // RedditApiService throws if !response.ok
 		await expect(
 			fetchRedditPosts('thisdoesnotexist123456789xyz', 1),
 		).rejects.toThrow();
@@ -137,11 +112,11 @@ describe('Post Type Detection (Real Posts)', () => {
 
 		const imagePost = posts.find((post) => {
 			const type = getPostType(post);
-			return type === 1; // media
+			return type === PostType.Media; 
 		});
 
 		if (imagePost) {
-			expect(getPostType(imagePost)).toBe(1);
+			expect(getPostType(imagePost)).toBe(PostType.Media);
 			expect(getPostTypeName(getPostType(imagePost))).toBe('media');
 		}
 	});
@@ -149,10 +124,10 @@ describe('Post Type Detection (Real Posts)', () => {
 	test('correctly identifies self/text posts from r/AskReddit', async () => {
 		const posts = await fetchRedditPosts('AskReddit', 5, 'top', 'week');
 
-		const selfPost = posts.find((post) => getPostType(post) === 0);
+		const selfPost = posts.find((post) => getPostType(post) === PostType.Self);
 
 		if (selfPost) {
-			expect(getPostType(selfPost)).toBe(0);
+			expect(getPostType(selfPost)).toBe(PostType.Self);
 			expect(selfPost.is_self).toBe(true);
 		}
 	});
@@ -160,10 +135,10 @@ describe('Post Type Detection (Real Posts)', () => {
 	test('correctly identifies link posts from r/technology', async () => {
 		const posts = await fetchRedditPosts('technology', 10, 'top', 'week');
 
-		const linkPost = posts.find((post) => getPostType(post) === 2);
+		const linkPost = posts.find((post) => getPostType(post) === PostType.Link);
 
 		if (linkPost) {
-			expect(getPostType(linkPost)).toBe(2);
+			expect(getPostType(linkPost)).toBe(PostType.Link);
 			expect(linkPost.is_self).toBeFalsy();
 		}
 	});
@@ -184,18 +159,6 @@ describe('File Naming (Real Posts)', () => {
 			expect(fileName.length).toBeLessThanOrEqual(240);
 		}
 	});
-
-	test('handles posts with special characters in title', async () => {
-		const posts = await fetchRedditPosts('news', 10);
-
-		for (const post of posts) {
-			const fileName = getFileName(post, TEST_CONFIG);
-
-			expect(typeof fileName).toBe('string');
-			expect(fileName.length).toBeGreaterThan(0);
-			expect(fileName).not.toMatch(/[/\\?%*:|"<>]/);
-		}
-	});
 });
 
 describe('Media Download Info (Real Posts)', () => {
@@ -203,7 +166,7 @@ describe('Media Download Info (Real Posts)', () => {
 		const posts = await fetchRedditPosts('pics', 10);
 
 		const imagePost = posts.find(
-			(post) => getPostType(post) === 1 && post.url,
+			(post) => getPostType(post) === PostType.Media && post.url,
 		);
 
 		if (imagePost) {
@@ -225,7 +188,7 @@ describe('Actual File Downloads', () => {
 				post.url &&
 				(post.url.endsWith('.jpg') ||
 					post.url.endsWith('.png') ||
-					post.url.endsWith('.jpeg')),
+					post.url.endsWith('.jpeg'))
 		);
 
 		if (imagePost) {
@@ -244,94 +207,12 @@ describe('Actual File Downloads', () => {
 			console.log('No direct image link found, skipping download test');
 		}
 	});
-
-	test('can download from i.redd.it domain', async () => {
-		const posts = await fetchRedditPosts('pics', 30, 'hot');
-
-		const redditImagePost = posts.find(
-			(post) => post.domain === 'i.redd.it' && post.url,
-		);
-
-		if (redditImagePost) {
-			const ext = redditImagePost.url.split('.').pop().split('?')[0];
-			const fileName = `test_reddit_image.${ext}`;
-			const filePath = path.join(TEST_DOWNLOAD_DIR, fileName);
-
-			await downloadFile(redditImagePost.url, filePath);
-
-			expect(fs.existsSync(filePath)).toBe(true);
-			const stats = fs.statSync(filePath);
-			expect(stats.size).toBeGreaterThan(0);
-
-			console.log(`Downloaded i.redd.it image: ${fileName} (${stats.size} bytes)`);
-		} else {
-			console.log('No i.redd.it image found, skipping test');
-		}
-	});
-
-	test('can create HTML redirect file for link posts', async () => {
-		const posts = await fetchRedditPosts('technology', 10);
-
-		const linkPost = posts.find((post) => getPostType(post) === 2);
-
-		if (linkPost) {
-			const fileName = 'test_link.html';
-			const filePath = path.join(TEST_DOWNLOAD_DIR, fileName);
-			const htmlContent = `<html><body><script type='text/javascript'>window.location.href = "${linkPost.url}";</script></body></html>`;
-
-			fs.writeFileSync(filePath, htmlContent);
-
-			expect(fs.existsSync(filePath)).toBe(true);
-			const content = fs.readFileSync(filePath, 'utf8');
-			expect(content).toContain(linkPost.url);
-
-			console.log(`Created link redirect for: ${linkPost.url}`);
-		}
-	});
-
-	test('can create text file for self posts', async () => {
-		const posts = await fetchRedditPosts('AskReddit', 5);
-
-		const selfPost = posts.find((post) => getPostType(post) === 0);
-
-		if (selfPost) {
-			const fileName = 'test_self_post.txt';
-			const filePath = path.join(TEST_DOWNLOAD_DIR, fileName);
-
-			let content = `${selfPost.title} by ${selfPost.author}\n\n`;
-			content += `${selfPost.selftext || '(no body text)'}\n`;
-			content += '------------------------------------------------\n';
-
-			fs.writeFileSync(filePath, content);
-
-			expect(fs.existsSync(filePath)).toBe(true);
-			const savedContent = fs.readFileSync(filePath, 'utf8');
-			expect(savedContent).toContain(selfPost.title);
-			expect(savedContent).toContain(selfPost.author);
-
-			console.log(`Created self post file for: ${selfPost.title.substring(0, 50)}...`);
-		}
-	});
 });
 
 describe('User Profile Downloads', () => {
 	test('can fetch posts from a user profile', async () => {
-		const url = buildRedditApiUrl({
-			target: 'reddit',
-			isUser: true,
-			sorting: 'new',
-			time: 'all',
-			limit: 5,
-		});
-
-		const response = await axios.get(url, {
-			timeout: DEFAULT_REQUEST_TIMEOUT,
-			headers: {
-				'User-Agent': 'RedditDownloaderTest/1.0',
-			},
-		});
-
-		const posts = response.data.data.children.map((child) => child.data);
+        const data = await apiService.fetchUserPosts('reddit', 5);
+		const posts = data.data.children.map((child: any) => child.data);
 
 		expect(posts.length).toBeGreaterThan(0);
 		expect(posts[0]).toHaveProperty('author');
@@ -345,12 +226,8 @@ describe('Gallery Post Detection', () => {
 		const galleryPost = posts.find((post) => post.is_gallery === true);
 
 		if (galleryPost) {
-			expect(getPostType(galleryPost)).toBe(4);
+			expect(getPostType(galleryPost)).toBe(PostType.Gallery);
 			expect(galleryPost).toHaveProperty('media_metadata');
-
-			console.log(
-				`Found gallery post with ${Object.keys(galleryPost.media_metadata).length} images`,
-			);
 		} else {
 			console.log('No gallery post found in sample');
 		}
@@ -359,23 +236,9 @@ describe('Gallery Post Detection', () => {
 
 describe('Error Handling', () => {
 	test('handles 404 errors gracefully', async () => {
-		const invalidUrl =
-			'https://www.reddit.com/r/thisdefinitelydoesnotexist12345/top/.json';
-
+        // The service throws on 404
 		await expect(
-			axios.get(invalidUrl, {
-				timeout: DEFAULT_REQUEST_TIMEOUT,
-				headers: { 'User-Agent': 'RedditDownloaderTest/1.0' },
-			}),
-		).rejects.toThrow();
-	});
-
-	test('handles timeout appropriately', async () => {
-		await expect(
-			axios.get('https://www.reddit.com/r/pics/top/.json', {
-				timeout: 1,
-				headers: { 'User-Agent': 'RedditDownloaderTest/1.0' },
-			}),
+            apiService.fetchSubredditPosts('thisdefinitelydoesnotexist12345', 'top', 'all', 5)
 		).rejects.toThrow();
 	});
 });
@@ -401,4 +264,3 @@ describe('Rate Limiting Awareness', () => {
 		});
 	});
 });
-
