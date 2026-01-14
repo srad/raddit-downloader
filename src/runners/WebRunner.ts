@@ -46,7 +46,8 @@ export class WebRunner implements Runner {
     this.app.use(express.json());
   }
 
-  async run(): Promise<void> {
+  async run(options: { openBrowser?: boolean } = {}): Promise<void> {
+    const { openBrowser = true } = options;
     const config = ConfigService.load();
     ConfigService.ensurePostListFile();
     if (!container.isRegistered(CONFIG_TOKEN)) {
@@ -64,7 +65,9 @@ export class WebRunner implements Runner {
     this.server.listen(this.PORT, async () => {
       const url = `http://localhost:${this.PORT}`;
       console.log(`Web interface running at: ${url}`);
-      await open(url);
+      if (openBrowser) {
+        await open(url);
+      }
     });
   }
 
