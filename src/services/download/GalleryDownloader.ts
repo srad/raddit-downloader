@@ -39,15 +39,34 @@ export class GalleryDownloader implements Downloader {
 
     for (const { media_id, id } of post.gallery_data.items) {
       const media = post.media_metadata[media_id];
-      if (!media || !media.s || !media.s.u) continue;
+      if (!media || !media.s) continue;
 
-      const downloadUrl = media.s.u.replaceAll('&amp;', '&');
-      
+      // Prioritize animated formats (mp4 > gif) over static images for better quality
+      let downloadUrl: string;
+      let postHint: string;
+
+      if (media.s.mp4) {
+        // Animated image as MP4 (highest quality for animations)
+        downloadUrl = media.s.mp4.replace(/&amp;/g, '&');
+        postHint = 'hosted:video';
+      } else if (media.s.gif) {
+        // Animated image as GIF
+        downloadUrl = media.s.gif.replace(/&amp;/g, '&');
+        postHint = 'image';
+      } else if (media.s.u) {
+        // Static image (full resolution)
+        downloadUrl = media.s.u.replace(/&amp;/g, '&');
+        postHint = 'image';
+      } else {
+        // No valid source URL found
+        continue;
+      }
+
       // Construct a fake mini-post to reuse MediaDownloader logic
       const miniPost = {
         ...post,
         url: downloadUrl,
-        post_hint: 'image', // force image handling
+        post_hint: postHint,
       } as RedditPost;
 
       let itemFilenameBase: string;

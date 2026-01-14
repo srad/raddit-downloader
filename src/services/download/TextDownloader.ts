@@ -36,15 +36,20 @@ export class TextDownloader implements Downloader {
       try {
         const postData = await this.apiService.fetchPost(post.url);
         content += '--COMMENTS--\n\n';
-        if (postData && postData[1] && postData[1].data && postData[1].data.children) {
-          for (const child of postData[1].data.children) {
-            const comment = child.data;
-            content += `${comment.author}:\n${comment.body}\n`;
-            if (comment.replies?.data?.children?.[0]?.data) {
-              const topReply = comment.replies.data.children[0].data;
-              content += `\t>\t${topReply.author}:\n\t>\t${topReply.body}\n`;
+        const commentsResponse = postData.length > 1 ? postData[1] : null;
+        if (commentsResponse && commentsResponse.data && commentsResponse.data.children) {
+          for (const child of commentsResponse.data.children) {
+            // Reddit comment API returns complex nested structures that vary
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const comment = child.data as any;
+            if (comment.author && comment.body) {
+              content += `${comment.author}:\n${comment.body}\n`;
+              if (comment.replies?.data?.children?.[0]?.data) {
+                const topReply = comment.replies.data.children[0].data;
+                content += `\t>\t${topReply.author}:\n\t>\t${topReply.body}\n`;
+              }
+              content += '\n\n\n';
             }
-            content += '\n\n\n';
           }
         }
       } catch (error) {

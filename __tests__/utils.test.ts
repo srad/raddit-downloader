@@ -87,62 +87,44 @@ describe('getFileName', () => {
 		title: 'Test Post Title',
 	} as unknown as RedditPost;
 
-	test('generates filename with all options enabled', () => {
+	test('generates simple filename: subreddit_YYYY-MM-DD_HH-MM-SS', () => {
 		const result = getFileName(mockPost, baseConfig);
-		expect(result).toMatch(/202\d-\d{2}-\d{2}/);
-		expect(result).toContain('score=1234');
+		// mockPost.created = 1609545600 => 2021-01-02 00:00:00 UTC
+		expect(result).toMatch(/^pics_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/);
 		expect(result).toContain('pics');
-		expect(result).toContain('testuser');
-		expect(result).toContain('Test Post Title');
+		expect(result).toContain('2021-01-02');
 	});
 
-	test('respects showDate: false', () => {
+	test('config options are ignored (simple format)', () => {
 		const config: Config = { ...baseConfig, file_naming_scheme: { ...baseConfig.file_naming_scheme, showDate: false } };
 		const result = getFileName(mockPost, config);
-		expect(result).not.toContain('2021');
+		// Simple format doesn't use config, should still be subreddit_timestamp
+		expect(result).toMatch(/^pics_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/);
 	});
 
-	test('respects showScore: false', () => {
-		const config: Config = { ...baseConfig, file_naming_scheme: { ...baseConfig.file_naming_scheme, showScore: false } };
-		const result = getFileName(mockPost, config);
-		expect(result).not.toContain('score=');
-	});
-
-	test('respects showAuthor: false', () => {
-		const config: Config = { ...baseConfig, file_naming_scheme: { ...baseConfig.file_naming_scheme, showAuthor: false } };
-		const result = getFileName(mockPost, config);
-		expect(result).not.toContain('testuser');
-	});
-
-	test('truncates filenames longer than MAX_FILENAME_LENGTH', () => {
+	test('always generates short clean filenames', () => {
+		// Even with very long title, filename stays simple
 		const longTitlePost = {
 			...mockPost,
 			title: 'A'.repeat(300),
 		} as unknown as RedditPost;
 		const result = getFileName(longTitlePost, baseConfig);
-		expect(result.length).toBeLessThanOrEqual(MAX_FILENAME_LENGTH);
+		expect(result).toMatch(/^pics_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/);
+		expect(result.length).toBeLessThan(50); // Much shorter than MAX_FILENAME_LENGTH
 	});
 
-	test('removes newlines and tabs from filename', () => {
-		const postWithNewlines = {
-			...mockPost,
-			title: 'Title\nwith\tnewlines\r\n',
-		} as unknown as RedditPost;
-		const result = getFileName(postWithNewlines, baseConfig);
-		expect(result).not.toContain('\n');
-		expect(result).not.toContain('\t');
-		expect(result).not.toContain('\r');
-	});
-
-	test('sanitizes special characters in title', () => {
+	test('no special characters or ellipsis needed', () => {
 		const postWithSpecialChars = {
 			...mockPost,
-			title: 'What? A <test> file!',
+			title: 'What? A <test> file! With&lt;HTML&gt;',
 		} as unknown as RedditPost;
 		const result = getFileName(postWithSpecialChars, baseConfig);
+		// Simple format ignores title completely
+		expect(result).toMatch(/^pics_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/);
 		expect(result).not.toContain('?');
 		expect(result).not.toContain('<');
-		expect(result).not.toContain('>');
+		expect(result).not.toContain('&');
+		expect(result).not.toMatch(/\.\.\./);
 	});
 });
 

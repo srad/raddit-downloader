@@ -3,7 +3,7 @@ module.exports = {
 	preset: 'ts-jest',
 	testEnvironment: 'node',
 	testMatch: ['**/__tests__/**/*.test.ts'],
-	collectCoverageFrom: ['src/lib/**/*.ts', 'src/index.ts'],
+	collectCoverageFrom: ['src/**/*.ts', '!src/**/*.test.ts', '!src/**/__tests__/**'],
 	coveragePathIgnorePatterns: ['/node_modules/', '/__tests__/'],
 	verbose: true,
 	testTimeout: 60000,
@@ -12,7 +12,7 @@ module.exports = {
 		{
 			displayName: 'unit',
 			preset: 'ts-jest',
-			testMatch: ['**/__tests__/utils.test.ts'],
+			testMatch: ['**/__tests__/utils.test.ts', '**/__tests__/services.test.ts', '**/__tests__/orchestrator.test.ts'],
 			testEnvironment: 'node',
 		},
 		{

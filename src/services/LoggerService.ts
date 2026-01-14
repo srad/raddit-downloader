@@ -49,19 +49,19 @@ export class LoggerService {
     const naming = this.config.local_logs_naming_scheme;
 
     if (naming.showDateAndTime) {
-      logFileName += `${this.dateString} - `; 
+      logFileName += `${this.dateString} - `;
     }
 
     if (naming.showSubreddits) {
       const subredditListString = JSON.stringify(subredditList).replace(/[^a-zA-Z0-9,]/g, '');
-      logFileName += `${subredditListString} - `; 
+      logFileName += `${subredditListString} - `;
     }
 
     if (naming.showNumberOfPosts) {
       if (numberOfPosts >= ALL_POSTS_CONST) {
-        logFileName += `ALL - `; 
+        logFileName += `ALL - `;
       } else {
-        logFileName += `${numberOfPosts} - `; 
+        logFileName += `${numberOfPosts} - `;
       }
     }
 
@@ -71,6 +71,8 @@ export class LoggerService {
 
     try {
       await fs.promises.writeFile(`${this.LOGS_DIR}/${logFileName}.${this.LOG_FORMAT}`, this.userLogs);
+      // Clear logs after writing to prevent unbounded memory growth
+      this.userLogs = '';
     } catch (err) {
       console.error('Failed to write log file:', err);
     }
@@ -79,8 +81,8 @@ export class LoggerService {
   public logWelcome(): void {
     console.clear();
     this.log(chalk.cyan('👋 Welcome to the easiest & most customizable Reddit Post Downloader!'), false);
-    this.log(chalk.yellow('😎 Contribute @ https://github.com/josephrcox/easy-reddit-downloader'), false);
-    this.log(chalk.blue('🤔 Confused? Check out the README @ https://github.com/josephrcox/easy-reddit-downloader#readme\n'), false);
+    this.log(chalk.yellow('😎 Contribute @ https://github.com/srad/raddit-downloader'), false);
+    this.log(chalk.blue('🤔 Confused? Check out the README @ https://github.com/srad/raddit-downloader#readme\n'), false);
   }
 
   public logValidation(validation: ValidationResult): void {

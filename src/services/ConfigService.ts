@@ -52,10 +52,21 @@ export class ConfigService {
       );
     }
 
+    // Check if at least one post type is enabled
+    const postTypesEnabled =
+      config.download_gallery_posts ||
+      config.download_self_posts ||
+      config.download_media_posts ||
+      config.download_link_posts;
+
+    if (!postTypesEnabled) {
+      errors.push('No post types are enabled for download');
+    }
+
     if (errors.length > 0 || warnings.length > 0) {
       warnings.push(
         'Read about recommended naming schemes here - ' +
-          'https://github.com/josephrcox/easy-reddit-downloader/blob/main/README.md#File-naming-scheme',
+          'https://github.com/srad/raddit-downloader/blob/main/README.md#File-naming-scheme',
       );
     }
 

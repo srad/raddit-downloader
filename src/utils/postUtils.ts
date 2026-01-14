@@ -56,42 +56,77 @@ export function getPostTypeName(type: PostType): string {
   }
 }
 
+/**
+ * Extracts the best quality download URL and file type from a Reddit post.
+ * Priority order:
+ * 1. media.reddit_video (Reddit-hosted videos, full quality)
+ * 2. preview.images[0].source (Full-resolution images)
+ * 3. .gifv conversion to .mp4
+ * 4. preview.reddit_video_preview (Fallback for video previews)
+ * 5. post.url (Original URL, may be direct link or embedding page)
+ */
 export function getMediaDownloadInfo(post: RedditPost): {
   downloadURL: string;
   fileType: string;
 } {
   let downloadURL = post.url;
-  let fileType = downloadURL.split('.').pop() || '';
 
-  if (post.preview !== undefined) {
-    if (post.preview.reddit_video_preview !== undefined) {
-      downloadURL = post.preview.reddit_video_preview.fallback_url;
-      fileType = 'mp4';
-    } else if (post.url_overridden_by_dest?.includes('.gifv')) {
+  // Helper function to extract file extension from URL (strips query params and hash)
+  const getExtensionFromUrl = (url: string): string => {
+    const urlWithoutParams = url.split('?')[0].split('#')[0];
+    const extension = urlWithoutParams.split('.').pop() || 'jpg';
+    return extension.toLowerCase();
+  };
+
+  let fileType = getExtensionFromUrl(downloadURL);
+
+  // PRIORITY 1: Reddit hosted videos (full quality, not preview)
+  if (post.media?.reddit_video?.fallback_url) {
+    downloadURL = post.media.reddit_video.fallback_url;
+    fileType = 'mp4';
+  }
+  // PRIORITY 2: Check preview object for other media types
+  else if (post.preview !== undefined) {
+    // Convert .gifv links to .mp4 (Imgur animated images)
+    if (post.url_overridden_by_dest?.includes('.gifv')) {
       downloadURL = post.url_overridden_by_dest.replace('.gifv', '.mp4');
       fileType = 'mp4';
-    } else if (post.preview.images?.[0]?.source?.url) {
-      const sourceURL = post.preview.images[0].source.url;
+    }
+    // Use full-resolution source image (NOT resized previews)
+    else if (post.preview.images?.[0]?.source?.url) {
+      // Decode HTML entities (e.g., &amp; -> &)
+      const sourceURL = post.preview.images[0].source.url.replace(/&amp;/g, '&');
+      downloadURL = sourceURL;
+
+      // Extract extension from clean URL
+      const cleanUrl = sourceURL.split('?')[0];
       for (const format of MEDIA_FORMATS) {
-        if (sourceURL.toLowerCase().includes(format.toLowerCase())) {
+        if (cleanUrl.toLowerCase().includes(`.${format.toLowerCase()}`)) {
           fileType = format;
           break;
         }
       }
+
+      // Fallback: extract extension from URL
+      if (!MEDIA_FORMATS.includes(fileType)) {
+        fileType = getExtensionFromUrl(sourceURL);
+      }
+    }
+    // FALLBACK: Use video preview only if no better source available
+    // Note: This may be lower quality than the original
+    else if (post.preview.reddit_video_preview?.fallback_url) {
+      downloadURL = post.preview.reddit_video_preview.fallback_url;
+      fileType = 'mp4';
     }
   }
 
-  if (post.media !== undefined && post.post_hint === 'hosted:video') {
-    downloadURL = post.media.reddit_video?.fallback_url || downloadURL;
-    fileType = 'mp4';
-  } else if (
-    post.media !== undefined &&
-    post.post_hint === 'rich:video' &&
-    post.media.oembed?.thumbnail_url !== undefined
-  ) {
-    downloadURL = post.media.oembed.thumbnail_url;
-    fileType = 'gif';
-  }
+  // For rich:video (embedded content like Gfycat, Redgifs):
+  // Falls back to post.url which may be a direct video link or an embedding page.
+  // Embedding pages cannot be downloaded directly and will fail during fetch.
+  // This is intentional - better to fail than download a low-quality thumbnail.
+
+  // Final cleanup: decode any HTML entities
+  downloadURL = downloadURL.replace(/&amp;/g, '&');
 
   return { downloadURL, fileType };
 }

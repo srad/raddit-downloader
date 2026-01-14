@@ -1,4 +1,4 @@
-import { Config, DownloadStats, State } from '../types';
+import { Config, DownloadStats, State, PromptAnswers, TestingModeOptions } from '../types';
 import { ALL_POSTS, DATA_DIR } from '../config/constants';
 import { singleton, inject } from 'tsyringe';
 import { CONFIG_TOKEN } from '../config/tokens';
@@ -17,7 +17,7 @@ export class StateService implements State {
   responseSize: number = -1;
   startTime: Date | null = null;
   lastAPICallForSubreddit: boolean = false;
-  currentAPICall: any = null;
+  currentAPICall: import('../types').RedditApiResponse | null = null;
   downloadDirectory: string = '';
   downloadedPosts: DownloadStats;
 
@@ -38,7 +38,7 @@ export class StateService implements State {
   }
 
   public initFromTestingMode(): void {
-    const opts = this.config.testingModeOptions || {};
+    const opts: TestingModeOptions = this.config.testingModeOptions || {};
     this.subredditList = opts.subredditList || [];
     this.numberOfPosts = opts.numberOfPosts || -1;
     this.sorting = opts.sorting || 'top';
@@ -56,12 +56,12 @@ export class StateService implements State {
     this.timeBetweenRuns = this.config.download_post_list_options.timeBetweenRuns;
   }
 
-  public initFromPrompts(result: any): boolean {
+  public initFromPrompts(result: PromptAnswers): boolean {
     if (!result || !result.subreddit) {
       return false;
     }
 
-    this.subredditList = result.subreddit.split(',').map((s: string) => s.replace(/\s/g, ''));
+    this.subredditList = result.subreddit.split(',').map((s: string) => s.replace(/\s/g, '')).filter(s => s.length > 0);
     this.repeatForever = result.repeatForever;
     this.numberOfPosts = result.numberOfPosts === 0 ? ALL_POSTS : result.numberOfPosts;
     this.sorting = result.sorting.replace(/\s/g, '');
@@ -71,7 +71,7 @@ export class StateService implements State {
       this.downloadDirectoryBase = result.downloadDirectory;
     }
 
-    if (this.repeatForever && result.timeBetweenRuns >= 0) {
+    if (this.repeatForever && result.timeBetweenRuns !== undefined && result.timeBetweenRuns >= 0) {
       this.timeBetweenRuns = result.timeBetweenRuns;
     }
 

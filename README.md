@@ -1,6 +1,10 @@
-# Easy Reddit Downloader (TypeScript)
+# Raddit Downloader
 
-A simple, powerful, and customizable CLI tool to download posts, images, and videos from Reddit subreddits and user profiles. Now rewritten in **TypeScript**!
+Reddit content downloader for specific subs or profiles with a CLI, web, and desktop frontend interface.
+
+This project is a fork from https://github.com/josephrcox/easy-reddit-downloader and a heavy rewrite of the original code, with mode tests and patterns.
+
+This app makes it simpler to gather, for example, training data for AI models.
 
 ## Features
 
@@ -16,8 +20,8 @@ A simple, powerful, and customizable CLI tool to download posts, images, and vid
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/josephrcox/easy-reddit-downloader.git
-    cd easy-reddit-downloader
+    git clone git@github.com:srad/raddit-downloader.git
+    cd raddit-downloader
     ```
 
 2.  **Install dependencies:**

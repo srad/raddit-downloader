@@ -1,0 +1,7 @@
+[*.ejs]
+tab_width = 2
+max_line_length = 120
+
+[{*.ts,*.js}]
+tab_width = 2
+max_line_length = 120

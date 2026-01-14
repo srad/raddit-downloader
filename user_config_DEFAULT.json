@@ -20,10 +20,10 @@
         "showNumberOfPosts": true
     },
     "file_naming_scheme": {
-        "showDateAndTime": true,
+        "showDate": true,
         "showAuthor": true,
         "showTitle": true,
-        "showScore": true,
+        "showScore": false,
         "showSubreddit": true
     },
     "download_self_posts": true,
@@ -34,5 +34,8 @@
     "download_comments": true,
     "separate_clean_nsfw": false,
     "redownload_posts": false,
-    "detailed_logs": false
+    "use_history_database": true,
+    "group_gallery_images": false,
+    "detailed_logs": false,
+    "rate_limit_delay_ms": 2000
 }

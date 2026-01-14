@@ -37,7 +37,8 @@ const TEST_CONFIG: Config = {
     group_gallery_images: false,
 };
 
-jest.setTimeout(60000);
+// Increased timeout to account for rate limiting delays
+jest.setTimeout(120000);
 
 const apiService = new RedditApiService();
 
@@ -67,6 +68,11 @@ afterAll(() => {
 	}
 });
 
+// Add delay between each test to avoid rate limiting
+beforeEach(async () => {
+	await new Promise((resolve) => setTimeout(resolve, 2000));
+});
+
 describe('Reddit API Integration', () => {
 	test('can fetch posts from r/pics subreddit', async () => {
 		const posts = await fetchRedditPosts('pics', 3);
@@ -88,6 +94,7 @@ describe('Reddit API Integration', () => {
 
 	test('can fetch posts with different sorting options', async () => {
 		const topPosts = await fetchRedditPosts('pics', 2, 'top', 'all');
+		await new Promise((resolve) => setTimeout(resolve, 2000));
 		const newPosts = await fetchRedditPosts('pics', 2, 'new', 'all');
 
 		expect(topPosts.length).toBeGreaterThan(0);
@@ -256,7 +263,8 @@ describe('Rate Limiting Awareness', () => {
 				count: posts.length,
 			});
 
-			await new Promise((resolve) => setTimeout(resolve, 500));
+			// Wait 2 seconds between requests to respect rate limits
+			await new Promise((resolve) => setTimeout(resolve, 2000));
 		}
 
 		expect(results.length).toBe(3);

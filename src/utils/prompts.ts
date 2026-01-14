@@ -3,16 +3,9 @@
  */
 
 import prompts from 'prompts';
+import { PromptAnswers } from '../types';
 
-export interface PromptAnswers {
-	subreddit: string;
-	numberOfPosts: number;
-	sorting: string;
-	time: string;
-	repeatForever: boolean;
-	timeBetweenRuns?: number;
-	downloadDirectory?: string;
-}
+export type { PromptAnswers };
 
 /**
  * Prompt user for download settings

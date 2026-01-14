@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raddit Downloader</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        :root {
+            --primary: #ff4500;
+            --primary-hover: #ff5722;
+            --bg: #0a0a0a;
+            --panel: #161616;
+            --card: #1e1e1e;
+            --text: #e8e8e8;
+            --text-muted: #999;
+            --border: #2a2a2a;
+            --highlight: #2d2d2d;
+            --success: #4caf50;
+            --danger: #f44336;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Layout */
+        .app-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 280px;
+            background: var(--panel);
+            border-right: 1px solid var(--border);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Header - Redesigned */
+        .header {
+            background: var(--panel);
+            padding: 10px 15px;
+            flex-shrink: 0;
+        }
+
+        .header-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .logo {
+            color: var(--primary);
+            font-weight: 700;
+            font-size: 1.4rem;
+            letter-spacing: -0.5px;
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+        }
+
+        .logo-version {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .search-container {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .main-input-group {
+            display: flex;
+            gap: 12px;
+            align-items: stretch;
+            margin-bottom: 12px;
+        }
+
+        .main-input-group input {
+            flex: 1;
+            font-size: 1.05rem;
+            padding: 14px 16px;
+        }
+
+        .options-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            padding: 8px 0;
+            transition: color 0.2s;
+            user-select: none;
+        }
+
+        .options-toggle:hover {
+            color: var(--text);
+        }
+
+        .options-toggle svg {
+            width: 16px;
+            height: 16px;
+            transition: transform 0.2s;
+        }
+
+        .options-toggle.open svg {
+            transform: rotate(180deg);
+        }
+
+        .options-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .options-row.open {
+            max-height: 200px;
+            padding-top: 12px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .input-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input, select {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            width: 100%;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(255, 69, 0, 0.1);
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .input-hint {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all 0.2s;
+            white-space: nowrap;
+            box-shadow: 0 2px 8px rgba(255, 69, 0, 0.3);
+        }
+
+        .btn:hover {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255, 69, 0, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: #555;
+            box-shadow: none;
+            transform: none;
+        }
+
+        .btn-stop {
+            background: var(--danger);
+            box-shadow: 0 2px 8px rgba(244, 67, 54, 0.3);
+        }
+
+        .btn-stop:hover {
+            background: #e53935;
+            box-shadow: 0 4px 12px rgba(244, 67, 54, 0.4);
+        }
+
+        .btn-secondary {
+            background: var(--card);
+            border: 1px solid var(--border);
+            font-size: 0.9rem;
+            padding: 10px 18px;
+            box-shadow: none;
+        }
+
+        .btn-secondary:hover {
+            background: var(--highlight);
+            box-shadow: none;
+        }
+
+        /* Sidebar File Tree */
+        .sidebar-header {
+            padding: 15px;
+            font-weight: bold;
+            color: #888;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .file-tree {
+            padding: 10px;
+            font-size: 0.9rem;
+        }
+
+        .tree-item {
+            cursor: pointer;
+            padding: 6px 10px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            user-select: none;
+            position: relative;
+            margin-bottom: 2px;
+        }
+
+        .tree-item:hover {
+            background: var(--highlight);
+        }
+
+        .tree-item.active {
+            background: #333;
+            color: var(--primary);
+        }
+
+        .tree-folder::before {
+            content: '📁';
+            color: #ffd700;
+        }
+
+        .tree-file::before {
+            content: '📄';
+            color: #aaa;
+        }
+
+        .tree-delete {
+            margin-left: auto;
+            color: #ff4444;
+            opacity: 0;
+            transition: opacity 0.2s;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 1.1rem;
+            line-height: 1;
+        }
+
+        .tree-item:hover .tree-delete {
+            opacity: 1;
+        }
+
+        .tree-delete:hover {
+            background: rgba(255, 68, 68, 0.2);
+        }
+
+        .tree-children {
+            padding-left: 22px;
+            display: none;
+            border-left: 1px solid #333;
+            margin-left: 9px;
+        }
+
+        .tree-children.open {
+            display: block;
+        }
+
+        /* Gallery */
+        .gallery-toolbar {
+            padding: 10px 20px;
+            background: var(--panel);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+            font-size: 0.9rem;
+            color: #aaa;
+        }
+
+        .gallery-grid {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            grid-auto-rows: max-content;
+            gap: 0;
+        }
+
+        .gallery-item {
+            position: relative;
+            aspect-ratio: 1;
+            width: 100%;
+            border-radius: 0;
+            overflow: hidden;
+            background: #111;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.1s, z-index 0.1s;
+        }
+
+        .gallery-item:hover {
+            z-index: 1;
+            transform: scale(1.05);
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        .gallery-item.selected {
+            outline: 3px solid var(--primary);
+            z-index: 2;
+        }
+
+        .gallery-item img, .gallery-item video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .item-checkbox {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            z-index: 10;
+            opacity: 0;
+            transition: opacity 0.2s;
+            accent-color: var(--primary);
+        }
+
+        .gallery-item:hover .item-checkbox, .gallery-item.selected .item-checkbox {
+            opacity: 1;
+        }
+
+        /* Logs Panel */
+        .logs-panel {
+            height: 200px;
+            background: #000;
+            border-top: 1px solid var(--border);
+            overflow-y: auto;
+            padding: 15px;
+            font-family: 'Consolas', monospace;
+            font-size: 0.85rem;
+            display: none;
+            flex-shrink: 0;
+        }
+
+        .logs-panel.visible {
+            display: block;
+        }
+
+        .log-entry {
+            margin-bottom: 4px;
+            border-bottom: 1px solid #111;
+            padding-bottom: 2px;
+        }
+
+        .log-error {
+            color: #ff5555;
+        }
+
+        /* Lightbox */
+        .lightbox {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            z-index: 1000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .lightbox.active {
+            display: flex;
+        }
+
+        .lightbox-content {
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            box-shadow: none;
+        }
+
+        .lightbox-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: white;
+            font-size: 2rem;
+            cursor: pointer;
+            z-index: 1001;
+            text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        .lightbox-close:hover {
+            opacity: 1;
+        }
+
+        .lightbox-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            color: white;
+            font-size: 3rem;
+            cursor: pointer;
+            padding: 20px;
+            opacity: 0.3;
+            transition: opacity 0.2s;
+            z-index: 1001;
+        }
+
+        .lightbox-nav:hover {
+            opacity: 1;
+        }
+
+        .lightbox-prev {
+            left: 20px;
+        }
+
+        .lightbox-next {
+            right: 20px;
+        }
+
+        .lightbox-info {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.9), transparent);
+            color: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            font-size: 0.9rem;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+
+        .lightbox:hover .lightbox-info {
+            opacity: 1;
+        }
+
+        .info-label {
+            color: #aaa;
+            margin-right: 6px;
+            font-weight: 500;
+        }
+
+        .info-group {
+            display: flex;
+            gap: 20px;
+        }
+
+    </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+    <div class="header-top">
+        <div class="logo">
+            <span>Raddit Downloader</span>
+            <span class="logo-version">v<%= version %></span>
+        </div>
+        <div class="header-actions">
+            <button class="btn btn-secondary" onclick="toggleLogs()">
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"
+                     style="vertical-align: -2px; margin-right: 6px;">
+                    <path d="M14 1a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h12zM2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2z"/>
+                    <path d="M3 4.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5z"/>
+                </svg>
+                Logs
+            </button>
+        </div>
+    </div>
+
+    <form id="downloadForm" class="search-container" hx-post="/api/start" hx-swap="none">
+        <div class="main-input-group">
+            <input list="history" name="subreddit" placeholder="Enter subreddit or u/username..." required
+                   autocomplete="off">
+            <datalist id="history"></datalist>
+            <button type="submit" class="btn" id="startBtn">
+                <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16"
+                     style="vertical-align: -3px; margin-right: 6px;">
+                    <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                    <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+                </svg>
+                Download
+            </button>
+            <button type="button" class="btn btn-stop" id="stopBtn" hx-post="/api/stop" disabled style="display: none;">
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"
+                     style="vertical-align: -2px; margin-right: 6px;">
+                    <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                    <path fill-rule="evenodd"
+                          d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                </svg>
+                Stop
+            </button>
+        </div>
+
+        <div class="options-toggle" onclick="toggleOptions()">
+            <svg fill="currentColor" viewBox="0 0 16 16">
+                <path fill-rule="evenodd"
+                      d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+            </svg>
+            <span>Advanced Options</span>
+        </div>
+
+        <div class="options-row" id="advancedOptions">
+            <div class="input-group">
+                <label class="input-label">Sort By</label>
+                <select name="sorting">
+                    <option value="top">Top</option>
+                    <option value="hot">Hot</option>
+                    <option value="new">New</option>
+                    <option value="rising">Rising</option>
+                </select>
+            </div>
+
+            <div class="input-group">
+                <label class="input-label">Time Period</label>
+                <select name="time">
+                    <option value="all">All Time</option>
+                    <option value="month" selected>This Month</option>
+                    <option value="year">This Year</option>
+                    <option value="week">This Week</option>
+                    <option value="day">Today</option>
+                </select>
+            </div>
+
+            <div class="input-group">
+                <label class="input-label">Post Limit</label>
+                <div class="input-wrapper">
+                    <input type="number" name="limit" value="0" min="0" placeholder="50">
+                    <div class="input-hint">0 for unlimited</div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Main App -->
+<div class="app-container">
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">FILES</div>
+        <div id="file-tree" class="file-tree">
+            <div style="padding:10px; color:#666;">Loading files...</div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="gallery-toolbar">
+            <div id="current-path">/</div>
+            <div style="display: flex; gap: 10px;">
+                <span id="selection-count"
+                      style="display:none; align-self: center; color: var(--primary);">0 selected</span>
+                <button class="btn btn-danger" id="deleteBtn"
+                        style="display:none; padding: 4px 10px; font-size: 0.8rem;" onclick="deleteSelected()">Delete
+                </button>
+            </div>
+        </div>
+
+        <div id="gallery-grid" class="gallery-grid">
+            <!-- Gallery Items -->
+            <div style="grid-column: 1/-1; text-align: center; color: #444; margin-top: 100px;">
+                Select a folder from the sidebar to view images.
+            </div>
+        </div>
+
+        <div id="logs-panel" class="logs-panel"></div>
+    </div>
+</div>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox">
+    <span class="lightbox-close" onclick="closeLightbox()">×</span>
+    <div class="lightbox-nav lightbox-prev" onclick="prevImage()">&#10094;</div>
+    <div class="lightbox-nav lightbox-next" onclick="nextImage()">&#10095;</div>
+
+    <div id="lightbox-container"
+         style="display: flex; justify-content: center; align-items: center; width: 100%; height: 100%;"></div>
+
+    <div id="lightbox-info" class="lightbox-info" style="display: none;"></div>
+</div>
+
+<script>
+    // --- State ---
+    let currentPath = '';
+    let galleryItems = [];
+    let selectedItems = new Set();
+    let currentLightboxIndex = -1;
+
+    // --- Init ---
+    const socket = io();
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const logsDiv = document.getElementById('logs-panel');
+
+    // Fetch History
+    fetch('/api/history').then(r => r.json()).then(items => {
+        const dl = document.getElementById('history');
+        items.forEach(sub => {
+            const opt = document.createElement('option');
+            opt.value = sub;
+            dl.appendChild(opt);
+        });
+    });
+
+    // Initial Tree Load
+    loadTree('', document.getElementById('file-tree'));
+
+    // --- Socket Logic ---
+    socket.on('log', (data) => {
+        const entry = document.createElement('div');
+        entry.className = 'log-entry ' + (data.message.includes('ERROR') ? 'log-error' : '');
+        entry.textContent = `[${new Date().toLocaleTimeString()}] ${data.message}`;
+        logsDiv.appendChild(entry);
+        logsDiv.scrollTop = logsDiv.scrollHeight;
+    });
+
+    socket.on('status', (status) => {
+        if (status === 'running') {
+            startBtn.style.display = 'none';
+            stopBtn.style.display = 'block';
+            stopBtn.disabled = false;
+            logsDiv.classList.add('visible');
+        } else {
+            startBtn.style.display = 'block';
+            startBtn.disabled = false;
+            startBtn.textContent = 'Start Download'; // Reset text
+            stopBtn.style.display = 'none';
+            stopBtn.disabled = true;
+        }
+    });
+
+    socket.on('refresh_files', () => {
+        loadTree('', document.getElementById('file-tree')); // Refresh root
+        if (currentPath) loadGallery(currentPath); // Refresh current gallery
+    });
+
+    // --- File Tree Logic ---
+    async function loadTree(pathStr, container) {
+        try {
+            const items = await fetch(`/api/browse?path=${encodeURIComponent(pathStr)}`).then(r => r.json());
+            container.innerHTML = '';
+
+            if (items.length === 0 && pathStr === '') {
+                container.innerHTML = '<div style="padding:10px; color:#666;">No downloads yet.</div>';
+                return;
+            }
+
+            items.forEach(item => {
+                // Only show directories in tree, files are shown in gallery
+                if (!item.isDirectory) return; // Skip files in tree view
+
+                const div = document.createElement('div');
+                div.className = 'tree-item tree-folder';
+                div.textContent = item.name;
+                div.title = item.name;
+
+                // Delete Button
+                const delBtn = document.createElement('span');
+                delBtn.className = 'tree-delete';
+                delBtn.innerHTML = '&times;';
+                delBtn.title = 'Delete Folder';
+                delBtn.onclick = (e) => deleteItem(e, item.path);
+                div.appendChild(delBtn);
+
+                div.onclick = (e) => {
+                    if (e.target === delBtn) return;
+                    e.stopPropagation();
+
+                    // Load into gallery
+                    loadGallery(item.path);
+
+                    // Expand logic
+                    let children = div.nextElementSibling;
+                    if (children && children.classList.contains('tree-children')) {
+                        children.classList.toggle('open');
+                    } else {
+                        const childContainer = document.createElement('div');
+                        childContainer.className = 'tree-children open';
+                        container.insertBefore(childContainer, div.nextElementSibling);
+                        loadTree(item.path, childContainer);
+                    }
+                };
+
+                container.appendChild(div);
+            });
+        } catch (e) {
+            console.error("Tree load failed", e);
+            container.innerHTML = '<div style="color:red; padding:10px;">Error loading tree</div>';
+        }
+    }
+
+    async function deleteItem(e, pathStr) {
+        e.stopPropagation();
+        if (!confirm(`Permanently delete "${pathStr}"?`)) return;
+
+        try {
+            const res = await fetch('/api/delete', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({files: [pathStr]})
+            });
+            const data = await res.json();
+            if (data.success) {
+                loadTree('', document.getElementById('file-tree')); // Reload Root for simplicity
+                if (currentPath.startsWith(pathStr)) {
+                    document.getElementById('gallery-grid').innerHTML = '';
+                    currentPath = '';
+                }
+            }
+        } catch (err) {
+            alert('Delete failed');
+        }
+    }
+
+    // --- Gallery Logic ---
+    async function loadGallery(pathStr) {
+        currentPath = pathStr;
+        document.getElementById('current-path').textContent = '/' + pathStr;
+        selectedItems.clear();
+        updateToolbar();
+
+        const items = await fetch(`/api/browse?path=${encodeURIComponent(pathStr)}`).then(r => r.json());
+        const grid = document.getElementById('gallery-grid');
+        grid.innerHTML = '';
+
+        galleryItems = items.filter(i => !i.isDirectory);
+
+        if (galleryItems.length === 0) {
+            grid.innerHTML = '<div style="color:#666; grid-column: 1/-1; text-align: center; margin-top: 50px;">Folder is empty</div>';
+            return;
+        }
+
+        galleryItems.forEach((item, index) => {
+            const el = document.createElement('div');
+            el.className = 'gallery-item';
+
+            const ext = item.name.split('.').pop().toLowerCase();
+            const isVideo = ['mp4', 'webm', 'gifv'].includes(ext);
+            const url = `/downloads/${item.path}`;
+
+            const mediaEl = isVideo
+                ? `<video src="${url}" muted loop onmouseover="this.play()" onmouseout="this.pause()"></video>`
+                : `<img src="${url}" loading="lazy">`;
+
+            el.innerHTML = `
+                    <input type="checkbox" class="item-checkbox" onclick="toggleSelect(event, '${item.path}')">
+                    ${mediaEl}
+                `;
+
+            el.onclick = (e) => {
+                if (e.target.type !== 'checkbox') openLightbox(index);
+            };
+
+            grid.appendChild(el);
+        });
+    }
+
+    function toggleSelect(e, path) {
+        e.stopPropagation();
+        if (selectedItems.has(path)) selectedItems.delete(path);
+        else selectedItems.add(path);
+
+        e.target.parentElement.classList.toggle('selected');
+        updateToolbar();
+    }
+
+    function updateToolbar() {
+        const count = selectedItems.size;
+        document.getElementById('selection-count').textContent = `${count} selected`;
+        document.getElementById('selection-count').style.display = count > 0 ? 'block' : 'none';
+        document.getElementById('deleteBtn').style.display = count > 0 ? 'block' : 'none';
+    }
+
+    async function deleteSelected() {
+        if (!confirm(`Delete ${selectedItems.size} items?`)) return;
+
+        await fetch('/api/delete', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({files: Array.from(selectedItems)})
+        });
+
+        loadGallery(currentPath);
+    }
+
+    // --- Lightbox Logic ---
+    function openLightbox(index) {
+        currentLightboxIndex = index;
+        document.getElementById('lightbox').classList.add('active');
+        renderLightboxItem();
+    }
+
+    function closeLightbox() {
+        document.getElementById('lightbox').classList.remove('active');
+        const container = document.getElementById('lightbox-container');
+        container.innerHTML = '';
+    }
+
+    function renderLightboxItem() {
+        if (currentLightboxIndex < 0 || currentLightboxIndex >= galleryItems.length) return;
+
+        const item = galleryItems[currentLightboxIndex];
+        const url = `/downloads/${item.path}`;
+        const ext = item.name.split('.').pop().toLowerCase();
+        const isVideo = ['mp4', 'webm', 'gifv'].includes(ext);
+        const container = document.getElementById('lightbox-container');
+        const infoBox = document.getElementById('lightbox-info');
+
+        const size = formatSize(item.size);
+        const pathDisplay = item.path.replace(/\\/g, '/');
+
+        // Set Info content
+        infoBox.style.display = 'flex';
+        infoBox.innerHTML = `
+                <div><span class="info-label">File:</span> ${pathDisplay}</div>
+                <div class="info-group">
+                    <div><span class="info-label">Size:</span> ${size}</div>
+                    <div id="res-info"><span class="info-label">Res:</span> ...</div>
+                </div>
+            `;
+
+        if (isVideo) {
+            container.innerHTML = `<video src="${url}" controls autoplay class="lightbox-content"></video>`;
+            const video = container.querySelector('video');
+            video.onloadedmetadata = () => {
+                document.getElementById('res-info').innerHTML = `<span class="info-label">Res:</span> ${video.videoWidth} x ${video.videoHeight}`;
+            };
+        } else {
+            container.innerHTML = `<img src="${url}" class="lightbox-content">`;
+            const img = container.querySelector('img');
+            img.onload = () => {
+                document.getElementById('res-info').innerHTML = `<span class="info-label">Res:</span> ${img.naturalWidth} x ${img.naturalHeight}`;
+            };
+        }
+    }
+
+    function formatSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    function prevImage() {
+        if (currentLightboxIndex > 0) {
+            currentLightboxIndex--;
+            renderLightboxItem();
+        }
+    }
+
+    function nextImage() {
+        if (currentLightboxIndex < galleryItems.length - 1) {
+            currentLightboxIndex++;
+            renderLightboxItem();
+        }
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (!document.getElementById('lightbox').classList.contains('active')) return;
+        if (e.key === 'ArrowLeft') prevImage();
+        if (e.key === 'ArrowRight') nextImage();
+        if (e.key === 'Escape') closeLightbox();
+    });
+
+    function toggleLogs() {
+        const p = document.getElementById('logs-panel');
+        p.classList.toggle('visible');
+    }
+
+    function toggleOptions() {
+        const optionsRow = document.getElementById('advancedOptions');
+        const toggle = document.querySelector('.options-toggle');
+        optionsRow.classList.toggle('open');
+        toggle.classList.toggle('open');
+    }
+
+    document.body.addEventListener('htmx:beforeRequest', function (evt) {
+        if (evt.target.id === 'downloadForm') {
+            startBtn.disabled = true;
+            startBtn.textContent = 'Starting...';
+        }
+    });
+
+</script>
+</body>
+</html>
