@@ -11,7 +11,7 @@
     "test:e2e": "jest --selectProjects e2e",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "desktop": "ts-node src/index.ts --desktop",
+    "desktop": "tsc && ts-node src/index.ts --desktop",
     "package": "electron-forge package",
     "make": "electron-forge make"
   },

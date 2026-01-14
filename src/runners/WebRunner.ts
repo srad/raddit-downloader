@@ -29,7 +29,7 @@ export class WebRunner implements Runner {
   private app: express.Application;
   private server: Server;
   private io: SocketIOServer;
-  private readonly PORT = 3000;
+  private port = 3000;
   private isRunning = false;
   private dbService!: DatabaseService;
   private abortController: AbortController | null = null;
@@ -46,8 +46,14 @@ export class WebRunner implements Runner {
     this.app.use(express.json());
   }
 
-  async run(options: { openBrowser?: boolean } = {}): Promise<void> {
-    const { openBrowser = true } = options;
+  public getPort(): number {
+    return this.port;
+  }
+
+  async run(options: { openBrowser?: boolean; port?: number } = {}): Promise<void> {
+    const { openBrowser = true, port = 3000 } = options;
+    this.port = port;
+
     const config = ConfigService.load();
     ConfigService.ensurePostListFile();
     if (!container.isRegistered(CONFIG_TOKEN)) {
@@ -62,12 +68,24 @@ export class WebRunner implements Runner {
     await this.setupRoutes();
     this.setupSockets();
 
-    this.server.listen(this.PORT, async () => {
-      const url = `http://localhost:${this.PORT}`;
-      console.log(`Web interface running at: ${url}`);
-      if (openBrowser) {
-        await open(url);
-      }
+    return new Promise((resolve, reject) => {
+      this.server.on('error', (err) => {
+        reject(err);
+      });
+
+      this.server.listen(this.port, () => {
+        const address = this.server.address();
+        if (typeof address === 'object' && address !== null) {
+          this.port = address.port;
+        }
+
+        const url = `http://localhost:${this.port}`;
+        console.log(`Web interface running at: ${url}`);
+        if (openBrowser) {
+          open(url).catch((err) => console.error('Failed to open browser:', err));
+        }
+        resolve();
+      });
     });
   }
 

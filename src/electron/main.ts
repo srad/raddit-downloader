@@ -3,11 +3,13 @@ import { app, BrowserWindow } from 'electron';
 import { WebRunner } from '../runners/WebRunner';
 
 let serverStarted = false;
+let webRunner: WebRunner | null = null;
 
 async function startServer() {
   if (!serverStarted) {
-    const webRunner = new WebRunner();
-    await webRunner.run({ openBrowser: false });
+    webRunner = new WebRunner();
+    // Pass port: 0 to let the OS assign an available port
+    await webRunner.run({ openBrowser: false, port: 0 });
     serverStarted = true;
   }
 }
@@ -23,7 +25,9 @@ function createWindow() {
   });
 
   win.setMenu(null);
-  win.loadURL('http://localhost:3000');
+  
+  const port = webRunner?.getPort() || 3000;
+  win.loadURL(`http://localhost:${port}`);
 }
 
 app.whenReady().then(async () => {
