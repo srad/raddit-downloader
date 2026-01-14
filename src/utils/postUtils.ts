@@ -1,4 +1,5 @@
-import { RedditPost } from '../types';
+import {RedditPost} from '../types';
+import {DEBUG} from '../config/constants';
 
 export const MEDIA_FORMATS = ['jpeg', 'jpg', 'gif', 'png', 'mp4', 'webm', 'gifv'];
 
@@ -57,6 +58,32 @@ export function getPostTypeName(type: PostType): string {
 }
 
 /**
+ * Extract file extension from URL (strips query params and hash)
+ * Returns null if no valid extension can be determined
+ */
+export function getExtensionFromUrl(url: string): string | null {
+  const urlWithoutParams = url.split('?')[0].split('#')[0];
+  const parts = urlWithoutParams.split('.');
+
+  if (parts.length < 2) {
+    return null; // No extension found
+  }
+
+  const lastPart = parts.pop();
+  if (!lastPart) {
+    return null;
+  }
+
+  // Check if the last part is actually a file extension (no slashes, reasonable length)
+  // Valid extensions are typically 2-5 characters and don't contain slashes or special chars
+  if (lastPart.includes('/') || lastPart.length > 5 || lastPart.length < 2) {
+    return null;
+  }
+
+  return lastPart.toLowerCase();
+}
+
+/**
  * Extracts the best quality download URL and file type from a Reddit post.
  * Priority order:
  * 1. media.reddit_video (Reddit-hosted videos, full quality)
@@ -71,21 +98,32 @@ export function getMediaDownloadInfo(post: RedditPost): {
 } {
   let downloadURL = post.url;
 
-  // Helper function to extract file extension from URL (strips query params and hash)
-  const getExtensionFromUrl = (url: string): string => {
-    const urlWithoutParams = url.split('?')[0].split('#')[0];
-    const extension = urlWithoutParams.split('.').pop() || 'jpg';
-    return extension.toLowerCase();
-  };
+  let fileType: string | null = getExtensionFromUrl(downloadURL);
 
-  let fileType = getExtensionFromUrl(downloadURL);
+    // Debug: Log post structure for preview URLs
+    if (DEBUG && downloadURL.includes('external-preview.redd.it')) {
+    console.log('\n⚠️  WARNING: Got external-preview URL');
+    console.log('Post URL:', post.url);
+    console.log('URL Override:', post.url_overridden_by_dest);
+    console.log('Has preview.images?', !!post.preview?.images);
+    console.log('Has preview.images[0].source?', !!post.preview?.images?.[0]?.source);
+    console.log('Has media.reddit_video?', !!post.media?.reddit_video);
+    console.log('Post hint:', post.post_hint);
+    console.log('Domain:', post.domain);
+  }
 
   // PRIORITY 1: Reddit hosted videos (full quality, not preview)
   if (post.media?.reddit_video?.fallback_url) {
     downloadURL = post.media.reddit_video.fallback_url;
     fileType = 'mp4';
   }
-  // PRIORITY 2: Check preview object for other media types
+  // PRIORITY 2: Check for url_overridden_by_dest (often the real URL for external links)
+  else if (post.url_overridden_by_dest && !post.url_overridden_by_dest.includes('external-preview')) {
+    downloadURL = post.url_overridden_by_dest;
+    const ext = getExtensionFromUrl(downloadURL);
+    if (ext) fileType = ext;
+  }
+  // PRIORITY 3: Check preview object for other media types
   else if (post.preview !== undefined) {
     // Convert .gifv links to .mp4 (Imgur animated images)
     if (post.url_overridden_by_dest?.includes('.gifv')) {
@@ -108,8 +146,9 @@ export function getMediaDownloadInfo(post: RedditPost): {
       }
 
       // Fallback: extract extension from URL
-      if (!MEDIA_FORMATS.includes(fileType)) {
-        fileType = getExtensionFromUrl(sourceURL);
+      if (!fileType || !MEDIA_FORMATS.includes(fileType)) {
+        const ext = getExtensionFromUrl(sourceURL);
+        if (ext) fileType = ext;
       }
     }
     // FALLBACK: Use video preview only if no better source available
@@ -127,6 +166,11 @@ export function getMediaDownloadInfo(post: RedditPost): {
 
   // Final cleanup: decode any HTML entities
   downloadURL = downloadURL.replace(/&amp;/g, '&');
+
+  // If we still don't have a valid file type, we can't safely download this
+  if (!fileType) {
+    throw new Error(`Unable to determine file type for URL: ${downloadURL}`);
+  }
 
   return { downloadURL, fileType };
 }

@@ -162,7 +162,8 @@ describe('File Naming (Real Posts)', () => {
 			expect(fileName).not.toMatch(/[/\\?%*:|"<>]/);
 
 			expect(fileName).toContain(post.subreddit);
-			expect(fileName).toContain(post.author);
+			// Simple format only includes subreddit_timestamp (author is not included)
+			expect(fileName).toMatch(/^pics_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/);
 
 			expect(fileName.length).toBeLessThanOrEqual(240);
 		}

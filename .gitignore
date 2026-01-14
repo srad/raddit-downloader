@@ -287,3 +287,5 @@ vite.config.ts.timestamp-*
 .claude
 CLAUDE.md
 GEMINI.md
+AGENTS.md
+*.db

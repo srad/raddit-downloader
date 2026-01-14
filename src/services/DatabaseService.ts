@@ -5,6 +5,7 @@ import { LoggerService } from '../services/LoggerService';
 import { RedditPost } from '../types';
 import { singleton, inject } from 'tsyringe';
 import { DATA_DIR } from '../config/constants';
+import { DB_PATH_TOKEN } from '../config/tokens';
 
 export interface DownloadRecord {
   id: number;
@@ -19,11 +20,17 @@ export interface DownloadRecord {
 @singleton()
 export class DatabaseService {
   private db: sqlite3.Database;
-  private readonly DB_PATH = path.join(DATA_DIR, 'history.db');
+  private readonly DB_PATH: string;
 
-  constructor(@inject(LoggerService) private loggerService: LoggerService) {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
+  constructor(
+    @inject(LoggerService) private loggerService: LoggerService,
+    @inject(DB_PATH_TOKEN) dbPath?: string
+  ) {
+    this.DB_PATH = dbPath || path.join(DATA_DIR, 'data.db');
+    const dbDir = path.dirname(this.DB_PATH);
+
+    if (!fs.existsSync(dbDir)) {
+      fs.mkdirSync(dbDir, { recursive: true });
     }
 
     this.db = new sqlite3.Database(this.DB_PATH, (err) => {
@@ -56,6 +63,9 @@ export class DatabaseService {
 
       // Migrate old databases that have 'subreddit' column
       this.migrateToSourceColumn();
+
+      // Migrate old absolute paths to relative paths
+      this.migrateToRelativePaths();
 
       // Create indexes for frequently queried columns
       this.createIndexes();
@@ -95,6 +105,117 @@ export class DatabaseService {
     });
   }
 
+  private migrateToRelativePaths(): void {
+    this.db.all('SELECT * FROM downloads', [], (err, rows: DownloadRecord[]) => {
+      if (err) {
+        this.loggerService.log(`Database migration error: ${err.message}`, true);
+        return;
+      }
+
+      if (!rows || rows.length === 0) {
+        return;
+      }
+
+      const updates: Promise<void>[] = [];
+      // Use the database path to determine the base directory
+      const dbDir = path.dirname(this.DB_PATH);
+      const downloadsDir = path.join(dbDir, 'downloads');
+
+      rows.forEach((record) => {
+        // Check if path looks like an absolute path (contains full directory structure)
+        // Old format: /data/downloads/r_pics or C:\data\downloads\r_pics
+        // New format: r_pics/filename.jpg
+        const isAbsolutePath =
+          record.path.includes(downloadsDir) ||
+          record.path.includes('downloads') ||
+          path.isAbsolute(record.path) ||
+          record.path.split(path.sep).length > 2;
+
+        // Skip if already migrated (path contains filename with extension)
+        if (!isAbsolutePath && record.path.includes('/') && record.filename === path.basename(record.path)) {
+          return; // Already in new format
+        }
+
+        if (isAbsolutePath) {
+          // Extract the folder name (e.g., "r_pics" or "u_username")
+          let folderName: string;
+
+          if (record.path.includes(downloadsDir)) {
+            // Path like: /data/downloads/r_pics
+            folderName = path.basename(record.path);
+          } else if (record.path.includes('downloads')) {
+            // Path like: downloads/r_pics or ./downloads/r_pics
+            const parts = record.path.split(path.sep);
+            const downloadsIndex = parts.findIndex(p => p === 'downloads');
+            folderName = parts[downloadsIndex + 1] || path.basename(record.path);
+          } else {
+            // Absolute path without "downloads" in it
+            folderName = path.basename(record.path);
+          }
+
+          // Try to find the actual file on disk to determine extension
+          const possibleExtensions = ['.mp4', '.jpg', '.jpeg', '.png', '.gif', '.webm', '.txt', '.html'];
+          let actualFilename = record.filename;
+          let foundExtension = false;
+
+          for (const ext of possibleExtensions) {
+            const testPath = path.join(downloadsDir, folderName, `${record.filename}${ext}`);
+            if (fs.existsSync(testPath)) {
+              actualFilename = `${record.filename}${ext}`;
+              foundExtension = true;
+              break;
+            }
+          }
+
+          // If file not found but filename already has extension, keep it
+          if (!foundExtension && record.filename.includes('.')) {
+            actualFilename = record.filename;
+          } else if (!foundExtension) {
+            // No file found and no extension in filename - skip this record
+            this.loggerService.log(
+              `Migration: Could not find file for record ${record.post_id}, keeping old format`,
+              true
+            );
+            return;
+          }
+
+          // Update to new format: folderName/filename.ext
+          const newPath = `${folderName}/${actualFilename}`;
+
+          const updatePromise = new Promise<void>((resolve, reject) => {
+            this.db.run(
+              'UPDATE downloads SET path = ?, filename = ? WHERE id = ?',
+              [newPath, actualFilename, record.id],
+              (updateErr) => {
+                if (updateErr) {
+                  this.loggerService.log(
+                    `Migration error for record ${record.id}: ${updateErr.message}`,
+                    true
+                  );
+                  reject(updateErr);
+                } else {
+                  resolve();
+                }
+              }
+            );
+          });
+
+          updates.push(updatePromise);
+        }
+      });
+
+      // Wait for all updates to complete, then log
+      if (updates.length > 0) {
+        Promise.allSettled(updates).then((results) => {
+          const successfulUpdates = results.filter(r => r.status === 'fulfilled').length;
+          if (successfulUpdates > 0) {
+            this.loggerService.log(`Database migrated: ${successfulUpdates} records updated to relative paths`, true);
+          }
+        });
+      }
+    });
+  }
+
   private createIndexes(): void {
     const indexes = [
       'CREATE INDEX IF NOT EXISTS idx_downloaded_at ON downloads(downloaded_at DESC)',
@@ -121,6 +242,23 @@ export class DatabaseService {
           resolve(!!row);
         }
       });
+    });
+  }
+
+  public async getDownloadRecord(postId: string): Promise<DownloadRecord | null> {
+    return new Promise((resolve, reject) => {
+      this.db.get(
+        'SELECT * FROM downloads WHERE post_id = ?',
+        [postId],
+        (err, row: DownloadRecord | undefined) => {
+          if (err) {
+            this.loggerService.log(`Database error: ${err.message}`, true);
+            reject(err);
+          } else {
+            resolve(row || null);
+          }
+        }
+      );
     });
   }
 

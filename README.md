@@ -1,20 +1,22 @@
 # Raddit Downloader
 
-Reddit content downloader for specific subs or profiles with a CLI, web, and desktop frontend interface.
+Reddit content downloader for subreddits and user profiles with CLI and web interfaces.
 
-This project is a fork from https://github.com/josephrcox/easy-reddit-downloader and a heavy rewrite of the original code, with mode tests and patterns.
+Fork from https://github.com/josephrcox/easy-reddit-downloader - fully rewritten with TypeScript, dependency injection, and comprehensive testing.
 
-This app makes it simpler to gather, for example, training data for AI models.
+Useful for gathering training data, archiving content, or backing up posts.
 
 ## Features
 
-- **Download Anything:** Supports images (jpg, png, gif), videos (mp4), text posts (txt), and link posts (html redirects).
-- **Customizable:** Configure file naming, download directories, sorting, time periods, and more.
-- **Bulk Download:** Download from multiple subreddits or users at once.
-- **Post List:** Download a specific list of posts from a text file.
-- **Smart Handling:** Automatically handles Gallery posts, Reddit hosted videos, Imgur links, and Gfycat/Redgifs.
-- **Safe & Clean:** Option to separate NSFW content from clean content.
-- **Type Safe:** Fully typed codebase for better maintenance and fewer bugs.
+Any content type that Reddit pretty much supports as content-type is supported.
+If you find a new or missing content type then open a ticket please.
+
+- **Download Media:** Images (jpg, png, gif), videos (mp4, webm), galleries, text posts, and links
+- **Third-Party Support:** RedGifs, Gfycat, Imgur with API integration
+- **Bulk Operations:** Download unlimited posts from multiple sources
+- **Smart Storage:** Portable database with relative paths, automatic deduplication
+- **Type Safe:** Full TypeScript with dependency injection (tsyringe)
+- **Tested:** 88+ unit tests with comprehensive coverage
 
 ## Installation
 
@@ -53,39 +55,55 @@ You will be asked:
 
 ### Configuration
 
-A `user_config.json` file will be created on first run. You can edit this file to customize:
+`user_config.json` (created on first run):
 
-- `file_naming_scheme`: Choose what info is in the filename (date, score, author, etc.)
-- `download_post_list_options`: Settings for downloading from `download_post_list.txt`
-- `separate_clean_nsfw`: Sort downloads into 'clean' and 'nsfw' folders
-- `redownload_posts`: Whether to skip already downloaded files
-- And much more!
+- `file_naming_scheme`: Filename format - currently fixed as `subreddit_YYYY-MM-DD_HH-MM-SS`
+- `use_history_database`: Enable/disable download history tracking (default: true)
+- `redownload_posts`: Re-download previously downloaded posts (default: false)
+- `download_gallery_posts`: Include gallery posts (default: true)
+- `download_youtube_videos_experimental`: Requires ffmpeg (default: false)
+- `rate_limit_delay_ms`: Delay between Reddit API requests (default: 1000)
 
-### Testing Mode
+### Web Interface
 
-You can enable `testingMode` in `user_config.json` to skip prompts and use the settings defined in `testingModeOptions`.
+Run the web UI:
+```bash
+npm run web
+```
+
+Access at `http://localhost:3000` - provides real-time download progress and file browsing.
 
 ## Development
 
 ### Running Tests
 
-Run unit and end-to-end tests with:
-
 ```bash
-npm test
+npm test              # All tests
+npm test -- --selectProjects=unit    # Unit tests only
 ```
 
 ### Project Structure
 
-- `src/`: Source code
-    - `index.ts`: Entry point
-    - `services/`: Core logic (API, Config, Logger, FileSystem, State)
-    - `services/download/`: Downloader strategies
-    - `utils/`: Utility functions and prompts
-    - `config/`: Constants
-    - `types/`: TypeScript interfaces
-- `dist/`: Compiled JavaScript output
-- `__tests__/`: Unit and E2E tests
+- `src/runners/`: Entry points (CLI, Web)
+- `src/services/`: Core logic with DI
+  - `download/`: Strategy pattern downloaders (Media, Gallery, RedGifs, YouTube, Text, Link)
+  - `DownloadOrchestrator.ts`: Coordinates downloads
+  - `DatabaseService.ts`: SQLite history with automatic migration
+- `src/utils/`: Helpers (filename, post type detection)
+- `data/`: Runtime files (data.db, downloads/, logs/)
+
+### Key Patterns
+
+- **Strategy Pattern:** Downloaders register and handle specific post types
+- **Dependency Injection:** tsyringe for testability
+- **Migration System:** Automatic database schema updates on startup
+
+## Technical Notes
+
+- **No Authentication:** Uses Reddit JSON API (no OAuth required)
+- **Rate Limiting:** Respects `X-Ratelimit-*` headers with exponential backoff
+- **File Extensions:** Extracts from URLs - fails if indeterminable (no guessing)
+- **Database:** Portable relative paths (`r_pics/file.jpg` not `/abs/path/`)
 
 ## License
 

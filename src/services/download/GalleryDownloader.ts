@@ -20,22 +20,16 @@ export class GalleryDownloader implements Downloader {
     return getPostType(post) === PostType.Gallery;
   }
 
-  async download(post: RedditPost, targetDir: string, filenameBase: string): Promise<void> {
+  async download(post: RedditPost, targetDir: string, filenameBase: string): Promise<string> {
     if (!post.media_metadata || !post.gallery_data) {
       this.loggerService.log(`Gallery post missing metadata: ${post.title}`, true);
-      return;
+      throw new Error('Gallery post missing metadata');
     }
 
-    const shouldGroup = this.config.group_gallery_images === true;
-    let postDirectory = targetDir;
+    this.loggerService.log(`Gallery download: ${post.title} (${post.gallery_data.items.length} items)`, true);
 
-    if (shouldGroup) {
-      postDirectory = `${targetDir}/${filenameBase}`;
-      this.fsService.ensureDirectoryExists(postDirectory);
-    }
-
-    // Index tracking for potential ordering if needed, currently ID based
     let index = 0;
+    let firstFilename = '';
 
     for (const { media_id, id } of post.gallery_data.items) {
       const media = post.media_metadata[media_id];
@@ -59,6 +53,7 @@ export class GalleryDownloader implements Downloader {
         postHint = 'image';
       } else {
         // No valid source URL found
+        this.loggerService.log(`Gallery item ${index + 1}: No valid source URL`, true);
         continue;
       }
 
@@ -69,20 +64,30 @@ export class GalleryDownloader implements Downloader {
         post_hint: postHint,
       } as RedditPost;
 
-      let itemFilenameBase: string;
-      if (shouldGroup) {
-        // Inside folder: just the ID or Index
-        itemFilenameBase = id.toString();
-      } else {
-        // Flat list: PostTitle_ID
-        // Adding index to ensure order or just ID? ID is unique but random looking.
-        // Let's use ID to be safe, maybe formatted as `${filenameBase}_${index}_${id}` if order matters?
-        // Or just `${filenameBase}_${id}`.
-        itemFilenameBase = `${filenameBase}_${id}`;
-      }
+      // All files go directly into targetDir with pattern: filenameBase_itemIndex
+      const itemFilenameBase = `${filenameBase}_${String(index + 1).padStart(2, '0')}`;
 
-      await this.mediaDownloader.download(miniPost, postDirectory, itemFilenameBase);
-      index++;
+      try {
+        this.loggerService.log(`Gallery item ${index + 1}/${post.gallery_data.items.length}: ${downloadUrl}`, true);
+        const downloadedFilename = await this.mediaDownloader.download(miniPost, targetDir, itemFilenameBase);
+
+        // Capture first filename for database tracking
+        if (index === 0) {
+          firstFilename = downloadedFilename;
+        }
+
+        index++;
+      } catch (error: any) {
+        this.loggerService.log(`Failed to download gallery item ${index + 1}: ${error.message}`, true);
+        this.loggerService.log(`  URL was: ${downloadUrl}`, true);
+        // Continue with next item instead of failing entire gallery
+      }
     }
+
+    if (!firstFilename) {
+      throw new Error('Failed to download any gallery items');
+    }
+
+    return firstFilename;
   }
 }

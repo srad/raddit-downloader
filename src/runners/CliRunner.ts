@@ -13,6 +13,7 @@ import { TextDownloader } from '../services/download/TextDownloader';
 import { LinkDownloader } from '../services/download/LinkDownloader';
 import { GalleryDownloader } from '../services/download/GalleryDownloader';
 import { YouTubeDownloader } from '../services/download/YouTubeDownloader';
+import { RedgifsDownloader } from '../services/download/RedgifsDownloader';
 import { promptForSettings } from '../utils/prompts';
 import { ALL_POSTS, MAX_POSTS_PER_REQUEST } from '../config/constants';
 import { getFileName } from '../utils/filenameUtils';
@@ -69,10 +70,11 @@ export class CliRunner implements Runner {
       loggerService.logVersionInfo(version, latestVersion);
     }
 
-    // 5. Setup Downloaders
+    // 5. Setup Downloaders (order matters - first match wins)
     downloadManager.registerDownloader(container.resolve(GalleryDownloader));
     downloadManager.registerDownloader(container.resolve(TextDownloader));
     downloadManager.registerDownloader(container.resolve(YouTubeDownloader));
+    downloadManager.registerDownloader(container.resolve(RedgifsDownloader)); // Before MediaDownloader
     downloadManager.registerDownloader(container.resolve(LinkDownloader));
     downloadManager.registerDownloader(container.resolve(MediaDownloader));
 
@@ -92,9 +94,14 @@ export class CliRunner implements Runner {
   ) {
     async function downloadSubredditBatch(target: string, lastPostId: string = '') {
       try {
-        await orchestrator.downloadBatch(target, loggerService, { delayBetweenPosts: 250 }, lastPostId);
+        await orchestrator.downloadBatch({
+            target,
+            logger: loggerService,
+            options:  { delayBetweenPosts: 250 },
+            lastPostId
+        });
 
-        // Log progress after each post (handled inside orchestrator now)
+        // Log progress after each post (handled inside the orchestrator now)
         const [, downloaded] = state.getPostsRemaining();
         const total = state.numberOfPosts >= ALL_POSTS ? 'all' : state.numberOfPosts;
         loggerService.log(`Still downloading posts from ${chalk.cyan(state.getCurrentSubreddit())}... (${downloaded}/${total})`, false);

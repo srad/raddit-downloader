@@ -18,13 +18,13 @@ export class MediaDownloader implements Downloader {
     return getPostType(post) === PostType.Media;
   }
 
-  async download(post: RedditPost, targetDir: string, filenameBase: string): Promise<void> {
+  async download(post: RedditPost, targetDir: string, filenameBase: string): Promise<string> {
     const { downloadURL, fileType } = getMediaDownloadInfo(post);
     const filename = `${filenameBase}.${fileType}`;
     const filePath = `${targetDir}/${filename}`;
 
     if (this.fsService.fileExists(filePath)) {
-      return; // Skip duplicate
+      return filename; // Skip duplicate
     }
 
     try {
@@ -69,6 +69,7 @@ export class MediaDownloader implements Downloader {
       const fileStream = this.fsService.createWriteStream(filePath);
 
       await pipeline(nodeStream, fileStream);
+      return filename;
     } catch (error: any) {
       if (error.code === 'ENOTFOUND') {
         this.loggerService.log(`ERROR: Hostname not found for: ${downloadURL}`, true);

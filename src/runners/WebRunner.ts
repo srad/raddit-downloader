@@ -3,7 +3,7 @@ import express from 'express';
 import { Server } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import * as path from 'path';
-import * as fs from 'fs';
+import * as fs from 'fs/promises';
 import open from 'open';
 import { injectable, container } from 'tsyringe';
 import { ConfigService } from '../services/ConfigService';
@@ -18,9 +18,11 @@ import { TextDownloader } from '../services/download/TextDownloader';
 import { LinkDownloader } from '../services/download/LinkDownloader';
 import { GalleryDownloader } from '../services/download/GalleryDownloader';
 import { YouTubeDownloader } from '../services/download/YouTubeDownloader';
-import { CONFIG_TOKEN } from '../config/tokens';
+import { RedgifsDownloader } from '../services/download/RedgifsDownloader';
+import { CONFIG_TOKEN, DB_PATH_TOKEN } from '../config/tokens';
 import { ALL_POSTS, DATA_DIR } from '../config/constants';
 import { Config } from '../types';
+import { FileUtils } from "../utils/fileUtils"
 
 @injectable()
 export class WebRunner implements Runner {
@@ -36,7 +38,7 @@ export class WebRunner implements Runner {
     this.app = express();
     this.server = new Server(this.app);
     this.io = new SocketIOServer(this.server);
-    
+
     this.app.set('view engine', 'ejs');
     this.app.engine('ejs', require('ejs').__express);
     this.app.set('views', path.join(__dirname, '../../views'));
@@ -50,10 +52,13 @@ export class WebRunner implements Runner {
     if (!container.isRegistered(CONFIG_TOKEN)) {
         container.register(CONFIG_TOKEN, { useValue: config });
     }
+    if (!container.isRegistered(DB_PATH_TOKEN)) {
+        container.register(DB_PATH_TOKEN, { useValue: path.join(DATA_DIR, 'data.db') });
+    }
 
     this.dbService = container.resolve(DatabaseService);
 
-    this.setupRoutes();
+    await this.setupRoutes();
     this.setupSockets();
 
     this.server.listen(this.PORT, async () => {
@@ -63,13 +68,13 @@ export class WebRunner implements Runner {
     });
   }
 
-  private setupRoutes() {
+  private async setupRoutes() {
     const publicDir = path.join(__dirname, '../../public');
     this.app.use(express.static(publicDir));
 
     const downloadsDir = path.join(DATA_DIR, 'downloads');
-    if (!fs.existsSync(downloadsDir)) {
-        fs.mkdirSync(downloadsDir, { recursive: true });
+    if (!(await FileUtils.exists(downloadsDir))) {
+        await fs.mkdir(downloadsDir, { recursive: true });
     }
     this.app.use('/downloads', express.static(downloadsDir));
 
@@ -82,7 +87,7 @@ export class WebRunner implements Runner {
         res.json(history);
     });
 
-    this.app.get('/api/browse', (req, res) => {
+    this.app.get('/api/browse', async (req, res) => {
         const relPath = (req.query.path as string) || '';
 
         // Secure path traversal prevention
@@ -94,21 +99,45 @@ export class WebRunner implements Runner {
             return res.status(403).send('Invalid path');
         }
 
-        if (!fs.existsSync(fullPath)) return res.json([]);
+        if (!(await FileUtils.exists(fullPath))) return res.json([]);
 
         try {
-            const items = fs.readdirSync(fullPath, { withFileTypes: true });
-            const result = items.map(item => {
+            const items = await fs.readdir(fullPath, { withFileTypes: true });
+
+            const result = await Promise.all(items.map(async item => {
                 const itemPath = path.join(fullPath, item.name);
-                const size = item.isDirectory() ? 0 : fs.statSync(itemPath).size;
+
+                let size = 0;
+                let fileCount = 0;
+
+                if (item.isDirectory()) {
+                    try {
+                        // Open the directory as a stream/iterator
+                        const dir = await fs.opendir(itemPath);
+
+                        // Iterate directly without creating an array of items
+                        for await (const dirent of dir) {
+                            if (dirent.isFile()) {
+                                fileCount++;
+                            }
+                        }
+                    } catch (error) {
+                        fileCount = 0;
+                    }
+                } else {
+                    const stats = await fs.stat(itemPath);
+                    size = stats.size;
+                }
+
                 return {
                     name: item.name,
                     isDirectory: item.isDirectory(),
                     path: path.join(normalizedRelPath, item.name).replace(/\\/g, '/'),
-                    size: size
+                    size: size,
+                    fileCount: fileCount
                 };
-            });
-            
+            }));
+
             result.sort((a, b) => {
                 if (a.isDirectory === b.isDirectory) return a.name.localeCompare(b.name);
                 return a.isDirectory ? -1 : 1;
@@ -121,12 +150,12 @@ export class WebRunner implements Runner {
         }
     });
 
-    this.app.post('/api/delete', (req, res) => {
+    this.app.post('/api/delete', async (req, res) => {
         const { files } = req.body;
         if (!Array.isArray(files)) return res.status(400).send('Invalid input');
 
         let deletedCount = 0;
-        files.forEach((relPath: string) => {
+        files.forEach(async (relPath: string) => {
             // Secure path traversal prevention
             const normalizedRelPath = path.normalize(relPath).replace(/^(\.\.[\/\\])+/, '');
             const fullPath = path.resolve(downloadsDir, normalizedRelPath);
@@ -136,12 +165,12 @@ export class WebRunner implements Runner {
                 return;
             }
 
-            if (fs.existsSync(fullPath)) {
+            if (await FileUtils.exists(fullPath)) {
                 try {
-                    if (fs.statSync(fullPath).isDirectory()) {
-                        fs.rmSync(fullPath, { recursive: true, force: true });
+                    if ((await fs.stat(fullPath)).isDirectory()) {
+                        await fs.rm(fullPath, { recursive: true, force: true });
                     } else {
-                        fs.unlinkSync(fullPath);
+                        await fs.unlink(fullPath);
                     }
                     deletedCount++;
                 } catch (e) {
@@ -161,12 +190,12 @@ export class WebRunner implements Runner {
       const numLimit = parseInt(limit) || 0;
 
       this.startDownloadTask(subreddit, sorting, time, numLimit);
-      
+
       res.send('Started');
     });
 
     this.app.post('/api/stop', (req, res) => {
-      this.isRunning = false; 
+      this.isRunning = false;
       if (this.abortController) {
           this.abortController.abort();
           this.abortController = null;
@@ -222,25 +251,36 @@ export class WebRunner implements Runner {
             logVersionInfo: () => {},
         };
 
-        const downloadManager = new DownloadManager(mockLoggerService as any, runConfig, dbService);
-        
+        const downloadManager = new DownloadManager(mockLoggerService as any, runConfig, dbService, fsService);
+
         const childContainer = container.createChildContainer();
         const { LoggerService } = await import('../services/LoggerService');
-        
+
         childContainer.register(CONFIG_TOKEN, { useValue: runConfig });
         childContainer.register(LoggerService, { useValue: mockLoggerService as any });
-        
+
         const scopedDownloadManager = childContainer.resolve(DownloadManager);
 
         scopedDownloadManager.registerDownloader(childContainer.resolve(GalleryDownloader));
         scopedDownloadManager.registerDownloader(childContainer.resolve(TextDownloader));
         scopedDownloadManager.registerDownloader(childContainer.resolve(YouTubeDownloader));
+        scopedDownloadManager.registerDownloader(childContainer.resolve(RedgifsDownloader));
         scopedDownloadManager.registerDownloader(childContainer.resolve(LinkDownloader));
         scopedDownloadManager.registerDownloader(childContainer.resolve(MediaDownloader));
 
         const orchestrator = new DownloadOrchestrator(runConfig, state, apiService, fsService, scopedDownloadManager);
 
-        await orchestrator.downloadBatch(subreddit, { log: socketLogger }, { delayBetweenPosts: 200, signal });
+        await orchestrator.downloadBatch({
+            target: subreddit,
+            logger: {log: socketLogger},
+            options: {delayBetweenPosts: 200, signal},
+            onProgress: (downloaded: number, total: number) => {
+                // throttle
+                if (downloaded % 10 === 0) {
+                    this.io.emit('refresh_files');
+                }
+            }
+        });
 
     } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);

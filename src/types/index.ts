@@ -65,6 +65,8 @@ export interface RedditPost {
     items: Array<{
       media_id: string;
       id: number;
+      outbound_url?: string;
+      caption?: string;
     }>;
   };
   name: string; // fullname id (e.g. t3_12345)

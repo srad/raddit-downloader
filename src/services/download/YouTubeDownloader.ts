@@ -24,10 +24,12 @@ export class YouTubeDownloader implements Downloader {
            post.domain.includes('youtu');
   }
 
-  async download(post: RedditPost, targetDir: string, filenameBase: string): Promise<void> {
+  async download(post: RedditPost, targetDir: string, filenameBase: string): Promise<string> {
+    const filename = `${filenameBase}.mp4`;
+
     if (!ytdl || !ffmpeg) {
       this.loggerService.log('YouTube download dependencies not available', true);
-      return;
+      return filename;
     }
 
     this.loggerService.log(`Downloading ${filenameBase} from YouTube... This may take a while...`, false);
@@ -70,11 +72,13 @@ export class YouTubeDownloader implements Downloader {
           .run();
       });
 
+      return filename;
     } catch (error) {
       this.loggerService.log(
         `Failed to download ${filenameBase} from YouTube. Do you have FFMPEG installed? https://ffmpeg.org/`,
         false,
       );
+      throw error;
     }
   }
 }

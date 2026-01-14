@@ -5,3 +5,10 @@ max_line_length = 120
 [{*.ts,*.js}]
 tab_width = 2
 max_line_length = 120
+ij_any_block_brace_style = end_of_line
+ij_any_class_brace_style = end_of_line
+ij_any_method_brace_style = end_of_line
+ij_javascript_force_semicolon_style = true
+ij_typescript_force_semicolon_style = true
+ij_javascript_tab_width = 2
+ij_typescript_tab_width = 2

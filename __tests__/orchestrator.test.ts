@@ -128,12 +128,12 @@ describe('DownloadOrchestrator', () => {
       await orchestrator.downloadPost(mockPost, mockLogger);
 
       expect(mockFsService.ensureDirectoryExists).toHaveBeenCalledWith(
-        '/downloads/pics'
+        '/downloads/r_pics'
       );
       // mockPost.created = 1234567890 => 2009-02-13 23:31:30 UTC
       expect(mockDownloadManager.download).toHaveBeenCalledWith(
         mockPost,
-        '/downloads/pics',
+        '/downloads/r_pics',
         expect.stringMatching(/^pics_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/),
         'pics' // Source parameter (subreddit name)
       );
@@ -153,7 +153,7 @@ describe('DownloadOrchestrator', () => {
       await nsfwOrchestrator.downloadPost(nsfwPost, mockLogger);
 
       expect(mockFsService.ensureDirectoryExists).toHaveBeenCalledWith(
-        '/downloads/nsfw/pics'
+        '/downloads/r_pics'
       );
     });
 
@@ -163,7 +163,7 @@ describe('DownloadOrchestrator', () => {
       await orchestrator.downloadPost(mockPost, mockLogger);
 
       expect(mockFsService.ensureDirectoryExists).toHaveBeenCalledWith(
-        '/downloads/user_pics'
+        '/downloads/u_testuser'
       );
     });
   });
@@ -172,7 +172,7 @@ describe('DownloadOrchestrator', () => {
     it('should fetch and download posts from a subreddit', async () => {
       mockState.getPostsRemaining.mockReturnValue([10, 0]);
 
-      await orchestrator.downloadBatch('pics', mockLogger);
+      await orchestrator.downloadBatch({ target: 'pics', logger: mockLogger, options: {} });
 
       expect(mockApiService.fetchSubredditPosts).toHaveBeenCalledWith(
         'pics',
@@ -189,7 +189,7 @@ describe('DownloadOrchestrator', () => {
     it('should respect post limit', async () => {
       mockState.getPostsRemaining.mockReturnValue([5, 5]);
 
-      await orchestrator.downloadBatch('pics', mockLogger);
+      await orchestrator.downloadBatch({ target: 'pics', logger: mockLogger, options: {} });
 
       expect(mockApiService.fetchSubredditPosts).toHaveBeenCalledWith(
         'pics',
@@ -206,7 +206,7 @@ describe('DownloadOrchestrator', () => {
         new Error('Download failed')
       );
 
-      await orchestrator.downloadBatch('pics', mockLogger);
+      await orchestrator.downloadBatch({ target: 'pics', logger: mockLogger, options: {} });
 
       expect(mockState.downloadedPosts.failed).toBe(1);
       expect(mockLogger.log).toHaveBeenCalledWith(
@@ -220,8 +220,10 @@ describe('DownloadOrchestrator', () => {
       abortController.abort();
 
       await expect(
-        orchestrator.downloadBatch('pics', mockLogger, {
-          signal: abortController.signal,
+        orchestrator.downloadBatch({
+          target: 'pics',
+          logger: mockLogger,
+          options: { signal: abortController.signal },
         })
       ).rejects.toThrow('Aborted');
     });
@@ -234,7 +236,7 @@ describe('DownloadOrchestrator', () => {
     it('should fetch from user endpoint for user profiles', async () => {
       mockState.getPostsRemaining.mockReturnValue([10, 0]);
 
-      await orchestrator.downloadBatch('user/testuser', mockLogger);
+      await orchestrator.downloadBatch({ target: 'user/testuser', logger: mockLogger, options: {} });
 
       expect(mockApiService.fetchUserPosts).toHaveBeenCalledWith(
         'testuser',
