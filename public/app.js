@@ -4,6 +4,8 @@ let allItems = []; // Store all items in current folder
 let galleryItems = []; // Store filtered items
 let selectedItems = new Set();
 let currentLightboxIndex = -1;
+let logBuffer = [];
+const MAX_LOGS = 200;
 
 // --- File Tree Logic ---
 const loadTree = async (pathStr, container) => {
@@ -18,16 +20,21 @@ const loadTree = async (pathStr, container) => {
 
         items.forEach(item => {
             // Only show directories in tree, files are shown in gallery
-            if (!item.isDirectory) return; // Skip files in tree view
+            if (!item.isDirectory) return; 
 
             const div = document.createElement('div');
-            div.className = 'tree-item tree-folder';
-            div.textContent = item.name + ` (${item.fileCount})`;
+            div.className = 'folder-item';
             div.title = item.name;
+
+            // Text Node
+            const label = document.createElement('span');
+            // label.className = 'folder-label'; // Optional, or just inline
+            label.textContent = `${item.name} (${item.fileCount})`;
+            div.appendChild(label);
 
             // Delete Button
             const delBtn = document.createElement('span');
-            delBtn.className = 'tree-delete';
+            delBtn.className = 'folder-delete';
             delBtn.innerHTML = '&times;';
             delBtn.title = 'Delete Folder';
             delBtn.onclick = (e) => deleteItem(e, item.path);
@@ -35,28 +42,20 @@ const loadTree = async (pathStr, container) => {
 
             div.onclick = async (e) => {
                 if (e.target === delBtn) return;
-                e.stopPropagation();
+                
+                // Highlight active folder
+                document.querySelectorAll('.folder-item').forEach(el => el.classList.remove('active'));
+                div.classList.add('active');
 
                 // Load into gallery
                 await loadGallery(item.path);
-
-                // Expand logic
-                let children = div.nextElementSibling;
-                if (children && children.classList.contains('tree-children')) {
-                    children.classList.toggle('open');
-                } else {
-                    const childContainer = document.createElement('div');
-                    childContainer.className = 'tree-children open';
-                    container.insertBefore(childContainer, div.nextElementSibling);
-                    loadTree(item.path, childContainer);
-                }
             };
 
             container.appendChild(div);
         });
     } catch (e) {
         console.error("Tree load failed", e);
-        container.innerHTML = '<div style="color:red; padding:10px;">Error loading tree</div>';
+        container.innerHTML = '<div style="color:red; padding:10px;">Error loading folders</div>';
     }
 };
 
@@ -266,6 +265,21 @@ const nextImage = () => {
 const toggleLogs = () => {
     const p = document.getElementById('logs-panel');
     p.classList.toggle('visible');
+    if (p.classList.contains('visible')) {
+        renderLogs();
+    }
+};
+
+const renderLogs = () => {
+    const logsDiv = document.getElementById('logs-panel');
+    logsDiv.innerHTML = '';
+    logBuffer.forEach(data => {
+        const entry = document.createElement('div');
+        entry.className = 'log-entry ' + (data.message.includes('ERROR') ? 'log-error' : '');
+        entry.textContent = `[${data.time}] ${data.message}`;
+        logsDiv.appendChild(entry);
+    });
+    logsDiv.scrollTop = logsDiv.scrollHeight;
 };
 
 const toggleOptions = () => {
@@ -296,6 +310,9 @@ window.addEventListener('load', function () {
     const stopBtn = document.getElementById('stopBtn');
     const logsDiv = document.getElementById('logs-panel');
     const searchInput = document.getElementById('searchInput');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressFill = document.getElementById('progressFill');
+    const progressText = document.getElementById('progressText');
 
 // Fetch History
     fetch('/api/history').then(r => r.json()).then(items => {
@@ -312,11 +329,24 @@ window.addEventListener('load', function () {
 
 // --- Socket Logic ---
     socket.on('log', (data) => {
-        const entry = document.createElement('div');
-        entry.className = 'log-entry ' + (data.message.includes('ERROR') ? 'log-error' : '');
-        entry.textContent = `[${new Date().toLocaleTimeString()}] ${data.message}`;
-        logsDiv.appendChild(entry);
-        logsDiv.scrollTop = logsDiv.scrollHeight;
+        const logItem = {
+            time: new Date().toLocaleTimeString(),
+            message: data.message
+        };
+        logBuffer.push(logItem);
+        if (logBuffer.length > MAX_LOGS) logBuffer.shift();
+
+        if (logsDiv.classList.contains('visible')) {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry ' + (data.message.includes('ERROR') ? 'log-error' : '');
+            entry.textContent = `[${logItem.time}] ${logItem.message}`;
+            logsDiv.appendChild(entry);
+            
+            while (logsDiv.children.length > MAX_LOGS) {
+                logsDiv.removeChild(logsDiv.firstChild);
+            }
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
     });
 
     socket.on('status', (status) => {
@@ -325,7 +355,11 @@ window.addEventListener('load', function () {
             stopBtn.style.display = 'block';
             stopBtn.disabled = false;
             searchInput.setAttribute("disabled", true);
-            logsDiv.classList.add('visible');
+            
+            // Show Progress
+            progressContainer.style.display = 'block';
+            progressFill.style.width = '0%';
+            progressText.textContent = 'Starting...';
         } else {
             startBtn.style.display = 'block';
             startBtn.disabled = false;
@@ -333,7 +367,19 @@ window.addEventListener('load', function () {
             startBtn.textContent = 'Start Download'; // Reset text
             stopBtn.style.display = 'none';
             stopBtn.disabled = true;
+            
+            // Hide Progress
+            progressContainer.style.display = 'none';
+            progressFill.style.width = '0%';
         }
+    });
+
+    socket.on('progress', (data) => {
+        const { downloaded, total } = data;
+        const percentage = total > 0 ? Math.round((downloaded / total) * 100) : 0;
+        
+        progressFill.style.width = percentage + '%';
+        progressText.textContent = `${downloaded} / ${total} posts (${percentage}%)`;
     });
 
     socket.on('refresh_files', async () => {

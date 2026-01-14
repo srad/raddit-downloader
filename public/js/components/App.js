@@ -1,13 +1,14 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
-import FileTree from './FileTree.js';
+import FileList from './FileList.js';
+import ProgressBar from './ProgressBar.js';
 import { useSocket } from '../composables/useSocket.js';
 
 export default {
     name: 'App',
-    components: { FileTree },
+    components: { FileList, ProgressBar },
     setup() {
-        const { socket, status, logs } = useSocket();
+        const { socket, status, logs, progress } = useSocket();
         
         // Form State
         const subreddit = ref('');
@@ -56,7 +57,7 @@ export default {
         return {
             status, logs, logsVisible, optionsOpen, version,
             subreddit, sorting, time, limit, history,
-            isRunning,
+            isRunning, progress,
             startDownload, stopDownload
         };
     },
@@ -104,6 +105,12 @@ export default {
                     </button>
                 </div>
 
+                <progress-bar 
+                    v-if="isRunning" 
+                    :current="progress.downloaded" 
+                    :total="progress.total">
+                </progress-bar>
+
                 <div class="options-toggle" :class="{ open: optionsOpen }" @click="optionsOpen = !optionsOpen">
                     <svg fill="currentColor" viewBox="0 0 16 16">
                         <path fill-rule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
@@ -149,7 +156,7 @@ export default {
                 <div class="sidebar-header">FILES</div>
                 <div class="file-tree">
                     <!-- Root File Tree -->
-                    <file-tree path="" label="Downloads" :initial-load="true"></file-tree>
+                    <file-list path="" label="Downloads" :initial-load="true"></file-list>
                 </div>
             </div>
 

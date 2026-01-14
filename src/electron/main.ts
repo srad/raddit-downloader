@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, dialog } from 'electron';
 import { WebRunner } from '../runners/WebRunner';
 
 let serverStarted = false;
@@ -28,6 +28,33 @@ function createWindow() {
   
   const port = webRunner?.getPort() || 3000;
   win.loadURL(`http://localhost:${port}`);
+
+  // Handle status changes
+  if (webRunner) {
+    webRunner.on('status-change', (status: string) => {
+      if (status === 'running') {
+        win.setTitle('Raddit Downloader - Downloading...');
+      } else {
+        win.setTitle('Raddit Downloader');
+      }
+    });
+  }
+
+  // Prevent accidental close during download
+  win.on('close', (e) => {
+    if (webRunner && webRunner.getStatus()) {
+      const choice = dialog.showMessageBoxSync(win, {
+        type: 'question',
+        buttons: ['Yes', 'No'],
+        title: 'Confirm',
+        message: 'A download is currently in progress. Are you sure you want to quit?'
+      });
+
+      if (choice === 1) {
+        e.preventDefault();
+      }
+    }
+  });
 }
 
 app.whenReady().then(async () => {

@@ -4,6 +4,7 @@ import { Server } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import * as path from 'path';
 import * as fs from 'fs/promises';
+import { EventEmitter } from 'events';
 import open from 'open';
 import { injectable, container } from 'tsyringe';
 import { ConfigService } from '../services/ConfigService';
@@ -25,7 +26,7 @@ import { Config } from '../types';
 import { FileUtils } from "../utils/fileUtils"
 
 @injectable()
-export class WebRunner implements Runner {
+export class WebRunner extends EventEmitter implements Runner {
   private app: express.Application;
   private server: Server;
   private io: SocketIOServer;
@@ -35,6 +36,7 @@ export class WebRunner implements Runner {
   private abortController: AbortController | null = null;
 
   constructor() {
+    super();
     this.app = express();
     this.server = new Server(this.app);
     this.io = new SocketIOServer(this.server);
@@ -48,6 +50,10 @@ export class WebRunner implements Runner {
 
   public getPort(): number {
     return this.port;
+  }
+
+  public getStatus(): boolean {
+    return this.isRunning;
   }
 
   async run(options: { openBrowser?: boolean; port?: number } = {}): Promise<void> {
@@ -234,6 +240,7 @@ export class WebRunner implements Runner {
 
   private async startDownloadTask(subreddit: string, sorting: string, time: string, limit: number) {
     this.isRunning = true;
+    this.emit('status-change', 'running');
     this.io.emit('status', 'running');
     this.abortController = new AbortController();
     const signal = this.abortController.signal;
@@ -296,7 +303,10 @@ export class WebRunner implements Runner {
             logger: {log: socketLogger},
             options: {delayBetweenPosts: 200, signal},
             onProgress: (downloaded: number, total: number) => {
-                // throttle
+                // Emit progress event
+                this.io.emit('progress', { downloaded, total });
+
+                // throttle file refresh
                 if (downloaded % 10 === 0) {
                     this.io.emit('refresh_files');
                 }
@@ -312,6 +322,7 @@ export class WebRunner implements Runner {
         }
     } finally {
         this.isRunning = false;
+        this.emit('status-change', 'idle');
         this.abortController = null;
         this.io.emit('status', 'idle');
         this.io.emit('log', { message: 'Done.' });

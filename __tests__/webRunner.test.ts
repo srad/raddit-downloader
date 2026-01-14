@@ -75,4 +75,12 @@ describe('WebRunner Port Selection', () => {
         expect(port).toBeGreaterThan(0);
         expect(port).not.toBe(3000); 
     });
+
+    it('should be an EventEmitter', () => {
+        expect(runner instanceof require('events').EventEmitter).toBe(true);
+    });
+
+    it('should return correct status', () => {
+        expect(runner.getStatus()).toBe(false);
+    });
 });

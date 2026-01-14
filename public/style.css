@@ -149,6 +149,35 @@ body {
     padding-top: 12px;
 }
 
+.progress-bar-container {
+    margin-top: 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    height: 30px;
+    position: relative;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: var(--primary);
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 0.8rem;
+    color: white;
+    font-weight: 600;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    white-space: nowrap;
+}
+
 .input-group {
     display: flex;
     flex-direction: column;
@@ -245,7 +274,7 @@ input:focus, select:focus {
     box-shadow: none;
 }
 
-/* Sidebar File Tree */
+/* Sidebar File List (Flat) */
 .sidebar-header {
     padding: 15px;
     font-weight: bold;
@@ -260,9 +289,9 @@ input:focus, select:focus {
     font-size: 0.9rem;
 }
 
-.tree-item {
+.folder-item {
     cursor: pointer;
-    padding: 6px 10px;
+    padding: 8px 12px;
     border-radius: 4px;
     display: flex;
     align-items: center;
@@ -270,28 +299,24 @@ input:focus, select:focus {
     user-select: none;
     position: relative;
     margin-bottom: 2px;
+    transition: background-color 0.1s;
 }
 
-.tree-item:hover {
+.folder-item:hover {
     background: var(--highlight);
 }
 
-.tree-item.active {
+.folder-item.active {
     background: #333;
     color: var(--primary);
 }
 
-.tree-folder::before {
+.folder-item::before {
     content: '📁';
     color: #ffd700;
 }
 
-.tree-file::before {
-    content: '📄';
-    color: #aaa;
-}
-
-.tree-delete {
+.folder-delete {
     margin-left: auto;
     color: #ff4444;
     opacity: 0;
@@ -302,23 +327,12 @@ input:focus, select:focus {
     line-height: 1;
 }
 
-.tree-item:hover .tree-delete {
+.folder-item:hover .folder-delete {
     opacity: 1;
 }
 
-.tree-delete:hover {
+.folder-delete:hover {
     background: rgba(255, 68, 68, 0.2);
-}
-
-.tree-children {
-    padding-left: 22px;
-    display: none;
-    border-left: 1px solid #333;
-    margin-left: 9px;
-}
-
-.tree-children.open {
-    display: block;
 }
 
 /* Gallery */
