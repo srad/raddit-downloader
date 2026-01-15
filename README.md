@@ -1,110 +1,210 @@
-# Raddit Downloader
+# RadditDownloader
 
-Reddit content downloader for subreddits and user profiles with CLI and web interfaces.
+A Reddit content crawler with CLI, web, and desktop interface for subreddits and user profiles.
 
-Fork from https://github.com/josephrcox/easy-reddit-downloader - fully rewritten with TypeScript, dependency injection, and comprehensive testing.
+Fork from [easy-reddit-downloader](https://github.com/josephrcox/easy-reddit-downloader) - almost entirely rewritten in TypeScript, dependency injection, and comprehensive testing.
 
-Useful for gathering training data, archiving content, or backing up posts.
+This project is especially useful for gathering data for machine learning projects.
+
+![Test Coverage](https://img.shields.io/badge/tests-89%20passing-brightgreen)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
 ## Features
 
-Any content type that Reddit pretty much supports as content-type is supported.
-If you find a new or missing content type then open a ticket please.
+- **Media Download:** Images (jpg, png, gif, webp), videos (mp4, webm), galleries, text posts
+- **Third-Party Support:** Gfycat, Imgur, YouTube (experimental), RedGifs
+- **Smart Filtering:** Content-Type validation prevents invalid downloads (HTML error pages saved as images)
+- **Deduplication:** SQLite database tracks downloads, automatic skip of existing files, redownload missing files
+- **Web Gallery:** Real-time progress monitoring, thumbnail generation, file browsing, and file management
+- **Desktop App:** Electron-based desktop version with system tray integration
+- **Type Safe:** Full TypeScript with dependency injection and 89 unit tests
 
-- **Download Media:** Images (jpg, png, gif), videos (mp4, webm), galleries, text posts, and links
-- **Third-Party Support:** RedGifs, Gfycat, Imgur with API integration
-- **Bulk Operations:** Download unlimited posts from multiple sources
-- **Smart Storage:** Portable database with relative paths, automatic deduplication
-- **Type Safe:** Full TypeScript with dependency injection (tsyringe)
-- **Tested:** 88+ unit tests with comprehensive coverage
+## Quick Start
 
-## Installation
+### Option 1: Download Release (Recommended)
 
-1.  **Clone the repository:**
-    ```bash
-    git clone git@github.com:srad/raddit-downloader.git
-    cd raddit-downloader
-    ```
+1. Download the latest release from [GitHub Releases](https://github.com/srad/raddit-downloader/releases)
+2. Extract and run the executable
+3. Follow the interactive prompts
 
-2.  **Install dependencies:**
-    ```bash
-    npm install
-    ```
-
-3.  **Build the project:**
-    ```bash
-    npm run build
-    ```
-
-## Usage
-
-### Interactive Mode
-
-Simply run the start command and follow the prompts:
+### Option 2: Run from Source
 
 ```bash
+# Clone and install
+git clone https://github.com/srad/raddit-downloader.git
+cd raddit-downloader
+npm install
+
+# Build and run
+npm run build
 npm start
 ```
 
-You will be asked:
-- Which subreddits/users to download from
-- How many posts to download
-- Sorting method (Top, New, Hot, etc.)
-- Time period (All time, Month, Week, etc.)
-- Whether to run on repeat
+## Usage
 
-### Configuration
+### CLI Mode
 
-`user_config.json` (created on first run):
+```bash
+npm start              # Interactive CLI prompts
+npm run web           # Web interface at http://localhost:3000
+npm run desktop       # Desktop app (Electron)
+```
 
-- `file_naming_scheme`: Filename format - currently fixed as `subreddit_YYYY-MM-DD_HH-MM-SS`
-- `use_history_database`: Enable/disable download history tracking (default: true)
-- `redownload_posts`: Re-download previously downloaded posts (default: false)
-- `download_gallery_posts`: Include gallery posts (default: true)
-- `download_youtube_videos_experimental`: Requires ffmpeg (default: false)
-- `rate_limit_delay_ms`: Delay between Reddit API requests (default: 1000)
+The CLI will ask you:
+- Subreddit or user profile to download from (e.g., `pics` or `u/username`)
+- Number of posts (or `all` for unlimited)
+- Sort method: `Top`, `New`, `Hot`, `Rising`, `Controversial`
+- Time period: `All`, `Year`, `Month`, `Week`, `Day`, `Hour`
+- Run on repeat (continuous monitoring)
 
 ### Web Interface
 
-Run the web UI:
 ```bash
 npm run web
 ```
 
-Access at `http://localhost:3000` - provides real-time download progress and file browsing.
+Features:
+- Real-time download progress per batch
+- File browser with thumbnails
+- Gallery lightbox viewer
+- Log streaming
+- Runs on `http://localhost:3000`
+
+### Desktop App
+
+```bash
+npm run desktop
+```
+
+Electron-based desktop version with auto-assigned ports to avoid conflicts.
+
+## Configuration
+
+Edit `user_config.json` (created on first run):
+
+```json
+{
+  "use_history_database": true,          // Track and skip downloaded files
+  "redownload_posts": false,             // Force re-download existing posts
+  "download_gallery_posts": true,        // Include Reddit galleries
+  "download_youtube_videos_experimental": false,  // Requires ffmpeg
+  "rate_limit_delay_ms": 1000,           // Delay between API requests
+  "nsfw_separate_folder": false          // Separate NSFW content
+}
+```
+
+Filenames are automatically formatted as: `subreddit_YYYY-MM-DD_HH-MM-SS.ext`
 
 ## Development
+
+### Project Structure
+
+```
+src/
+├── runners/              # Entry points (CLI, Web, Desktop)
+├── services/
+│   ├── download/         # Downloader strategies (Media, Gallery, RedGifs, YouTube)
+│   ├── DownloadOrchestrator.ts
+│   ├── DatabaseService.ts
+│   ├── ThumbnailService.ts
+│   └── FileSystemService.ts
+├── utils/                # Helpers (filename, post detection)
+└── types.ts             # TypeScript interfaces
+
+__tests__/               # Jest unit tests
+public/                  # Web UI assets
+data/                    # Runtime files (database, downloads, thumbnails)
+```
 
 ### Running Tests
 
 ```bash
-npm test              # All tests
-npm test -- --selectProjects=unit    # Unit tests only
+npm test                          # Run all tests
+npm test -- --selectProjects=unit # Unit tests only
+npm test -- --selectProjects=e2e  # E2E tests only
+npm run test:watch               # Watch mode
+npm run test:coverage            # Coverage report
 ```
 
-### Project Structure
+### Key Architecture
 
-- `src/runners/`: Entry points (CLI, Web)
-- `src/services/`: Core logic with DI
-  - `download/`: Strategy pattern downloaders (Media, Gallery, RedGifs, YouTube, Text, Link)
-  - `DownloadOrchestrator.ts`: Coordinates downloads
-  - `DatabaseService.ts`: SQLite history with automatic migration
-- `src/utils/`: Helpers (filename, post type detection)
-- `data/`: Runtime files (data.db, downloads/, logs/)
+- **Strategy Pattern:** Each downloader (`MediaDownloader`, `GalleryDownloader`, etc.) handles specific post types
+- **Dependency Injection:** Uses `tsyringe` for testability and modularity
+- **Content-Type Validation:** Prevents HTML error pages from being saved as images
+- **Database Migrations:** Automatic schema updates on version changes
+- **Portable Paths:** Stores relative paths (`r_pics/file.jpg`) for portability
 
-### Key Patterns
+### Adding a New Downloader
 
-- **Strategy Pattern:** Downloaders register and handle specific post types
-- **Dependency Injection:** tsyringe for testability
-- **Migration System:** Automatic database schema updates on startup
+1. Implement the `Downloader` interface in `src/services/download/`
+2. Register in `src/services/download/index.ts`
+3. Add tests in `__tests__/`
 
-## Technical Notes
+Example:
+```typescript
+@injectable()
+export class MyDownloader implements Downloader {
+  canHandle(post: RedditPost): boolean {
+    return post.domain.includes('example.com');
+  }
 
-- **No Authentication:** Uses Reddit JSON API (no OAuth required)
+  async download(post: RedditPost, targetDir: string, filenameBase: string): Promise<string> {
+    // Download logic
+  }
+}
+```
+
+## Technical Details
+
+### Reddit API
+
+- **No Authentication Required:** Uses public JSON API (`https://reddit.com/r/{subreddit}.json`)
 - **Rate Limiting:** Respects `X-Ratelimit-*` headers with exponential backoff
-- **File Extensions:** Extracts from URLs - fails if indeterminable (no guessing)
-- **Database:** Portable relative paths (`r_pics/file.jpg` not `/abs/path/`)
+- **User-Agent:** Custom UA to avoid 429 errors
+
+### Download Strategy
+
+1. **Post Type Detection:** Analyzes `post_hint`, `domain`, and metadata
+2. **URL Extraction:** Prioritizes highest quality sources:
+   - `media.reddit_video.fallback_url` (full quality video)
+   - `preview.images[0].source.url` (full resolution image)
+   - `url_overridden_by_dest` (external media)
+3. **Content Validation:** Checks `Content-Type` header before saving
+4. **Error Handling:** Logs failures but continues batch processing
+
+### File Storage
+
+- **Database:** SQLite in `data/data.db` with relative paths
+- **Downloads:** Organized by subreddit in `data/downloads/r_{subreddit}/`
+- **Thumbnails:** Auto-generated in `data/thumbnails/` using Sharp and FFmpeg
+- **Deduplication:** Tracks by Reddit post ID, skips if file exists
+
+## Troubleshooting
+
+**403 Errors:** Some CDNs block downloads. The app uses browser-like headers with proper `Referer` and `User-Agent`.
+
+**HTML files saved as images:** Fixed in v1.0+ with Content-Type validation. Update to latest version.
+
+**YouTube downloads fail:** Set `download_youtube_videos_experimental: true` and install ffmpeg.
+
+**Port already in use:** Web interface auto-selects available ports. Desktop app uses dynamic port assignment.
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Write tests for your changes
+4. Ensure all tests pass (`npm test`)
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
 
 ## License
 
-MIT
+MIT License - see [LICENSE](LICENSE) for details
+
+## Credits
+
+Original project by [Joseph R. Cox](https://github.com/josephrcox/easy-reddit-downloader)
+This fork for by [srad](https://github.com/srad)
