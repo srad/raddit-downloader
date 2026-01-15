@@ -4,7 +4,7 @@ A Reddit content crawler with CLI, web, and desktop interface for subreddits and
 
 Fork from [easy-reddit-downloader](https://github.com/josephrcox/easy-reddit-downloader) - almost entirely rewritten in TypeScript, dependency injection, and comprehensive testing.
 
-This project is especially useful for gathering data for machine learning projects.
+This project is especially useful for gathering data for machine learning projects. Since also automatic thumbnails are generated for images and videos you can even directly use those.
 
 ![Test Coverage](https://img.shields.io/badge/tests-89%20passing-brightgreen)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)
@@ -19,6 +19,10 @@ This project is especially useful for gathering data for machine learning projec
 - **Web Gallery:** Real-time progress monitoring, thumbnail generation, file browsing, and file management
 - **Desktop App:** Electron-based desktop version with system tray integration
 - **Type Safe:** Full TypeScript with dependency injection and 89 unit tests
+
+## Screenshot
+
+<img width="1586" height="911" alt="v2 0 1-screenshot" src="https://github.com/user-attachments/assets/cccb85b3-bb57-4de9-9f3b-f650a5320dc6" />
 
 ## Quick Start
 
@@ -75,6 +79,13 @@ Features:
 
 ```bash
 npm run desktop
+```
+
+### Create Installer
+
+```bash
+npm install
+npm run make
 ```
 
 Electron-based desktop version with auto-assigned ports to avoid conflicts.
