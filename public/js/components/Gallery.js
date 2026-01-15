@@ -1,6 +1,6 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
-import { useInfiniteScroll } from '@vueuse/core';
+import { useInfiniteScroll, useDebounceFn } from '@vueuse/core';
 import Lightbox from './Lightbox.js';
 import { useSocket } from '../composables/useSocket.js';
 
@@ -24,6 +24,9 @@ export default {
         const visibleLimit = ref(50);
         const scrollContainer = ref(null);
         const isLoadingMore = ref(false);
+
+        // Hover state for videos
+        const hoveringPath = ref(null);
 
         const currentPath = computed(() => {
             if (!route.params.path) return '';
@@ -73,10 +76,14 @@ export default {
         };
 
         const fetchFiles = async () => {
+            // If already loading, we might want to skip or queue, but for now just let it run
             loading.value = true;
-            selectedItems.value.clear();
-            visibleLimit.value = 50;
-            if (scrollContainer.value) scrollContainer.value.scrollTop = 0;
+            // Don't clear selection on background refresh
+            // selectedItems.value.clear(); 
+            
+            // Only reset limit if we are changing paths, not on refresh
+            // visibleLimit.value = 50; 
+            
             try {
                 const p = currentPath.value;
                 const res = await fetch(`/api/browse?path=${encodeURIComponent(p)}`);
@@ -90,8 +97,21 @@ export default {
             }
         };
 
-        watch(currentPath, fetchFiles, { immediate: true });
-        watch(refreshSignal, fetchFiles);
+        // Debounced fetch for refresh signals
+        const debouncedFetch = useDebounceFn(() => {
+            fetchFiles();
+        }, 1000);
+
+        // Initial load and path change - immediate
+        watch(currentPath, () => {
+             selectedItems.value.clear();
+             visibleLimit.value = 50;
+             if (scrollContainer.value) scrollContainer.value.scrollTop = 0;
+             fetchFiles();
+        }, { immediate: true });
+
+        // Socket signal - debounced
+        watch(refreshSignal, debouncedFetch);
         
         watch([filterText, filterType], async () => {
             visibleLimit.value = 50;
@@ -123,6 +143,7 @@ export default {
                     body: JSON.stringify({files: Array.from(selectedItems.value)})
                 });
                 await fetchFiles();
+                selectedItems.value.clear();
             } catch (err) {
                 alert('Delete failed');
             }
@@ -152,7 +173,8 @@ export default {
             openLightbox,
             isVideo,
             isGif,
-            scrollContainer
+            scrollContainer,
+            hoveringPath
         };
     },
     template: `
@@ -183,34 +205,65 @@ export default {
             </div>
 
             <div class="gallery-grid" id="gallery-grid" ref="scrollContainer">
-                <div v-if="loading" style="grid-column: 1/-1; text-align: center; margin-top: 50px;">Loading...</div>
+                <div v-if="loading && allItems.length === 0" style="grid-column: 1/-1; text-align: center; margin-top: 50px;">Loading...</div>
                 <div v-else-if="filteredItems.length === 0" style="color:#666; grid-column: 1/-1; text-align: center; margin-top: 50px;">
                     {{ allItems.length === 0 ? 'Folder is empty' : 'No files match filter' }}
                 </div>
 
-                <div v-for="(item, index) in visibleItems" :key="item.path" 
-                     class="gallery-item" 
+                <div v-for="(item, index) in visibleItems" :key="item.path"
+                     class="gallery-item"
                      :class="{ selected: selectedItems.has(item.path) }"
-                     @click="openLightbox(index)">
-                    
-                    <input type="checkbox" class="item-checkbox" 
-                           :checked="selectedItems.has(item.path)" 
+                     @click="openLightbox(index)"
+                     @mouseenter="hoveringPath = item.path"
+                     @mouseleave="hoveringPath = null">
+
+                    <input type="checkbox" class="item-checkbox"
+                           :checked="selectedItems.has(item.path)"
                            @click.stop="toggleSelect(item.path)">
-                    
-                    <video v-if="isVideo(item.name)" 
-                           :src="'/downloads/' + item.path" 
-                           muted loop 
-                           onmouseover="this.play()" 
-                           onmouseout="this.pause()">
-                    </video>
-                    <span v-if="isVideo(item.name)" class="gallery-item-info" style="background-color: mediumseagreen">{{ item.name.split('.').pop() }}</span>
 
-                    <img v-else-if="isGif(item.name)" 
-                         :src="'/downloads/' + item.path" 
-                         class="hover-gif" loading="lazy">
-                    <span v-else-if="isGif(item.name)" class="gallery-item-info" style="background-color: deepskyblue">Gif</span>
+                    <!-- Thumbnail available - use it for better performance -->
+                    <template v-if="item.thumbnail">
+                        <img :src="'/thumbnails/' + item.thumbnail" loading="lazy"
+                             style="width: 100%; height: 100%; object-fit: cover;">
 
-                    <img v-else :src="'/downloads/' + item.path" loading="lazy">
+                        <!-- Video overlay indicator -->
+                        <div v-if="isVideo(item.name)" class="video-overlay">
+                            <svg width="48" height="48" fill="white" viewBox="0 0 16 16" style="opacity: 0.9;">
+                                <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                                <path d="M6.271 5.055a.5.5 0 0 1 .52.038l3.5 2.5a.5.5 0 0 1 0 .814l-3.5 2.5A.5.5 0 0 1 6 10.5v-5a.5.5 0 0 1 .271-.445z"/>
+                            </svg>
+                        </div>
+                        <span v-if="isVideo(item.name)" class="gallery-item-info" style="background-color: mediumseagreen">
+                            {{ item.name.split('.').pop() }}
+                        </span>
+                        <span v-else-if="isGif(item.name)" class="gallery-item-info" style="background-color: deepskyblue">Gif</span>
+                    </template>
+
+                    <!-- No thumbnail - fallback to old behavior -->
+                    <template v-else>
+                        <!-- Video Logic -->
+                        <template v-if="isVideo(item.name)">
+                             <video v-if="hoveringPath === item.path"
+                                   :src="'/downloads/' + item.path"
+                                   muted loop autoplay
+                                   style="object-fit: contain; width: 100%; height: 100%; display: block;">
+                            </video>
+                            <div v-else class="video-placeholder" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #eee;">
+                                <svg width="48" height="48" fill="#999" viewBox="0 0 16 16">
+                                    <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                                    <path d="M6.271 5.055a.5.5 0 0 1 .52.038l3.5 2.5a.5.5 0 0 1 0 .814l-3.5 2.5A.5.5 0 0 1 6 10.5v-5a.5.5 0 0 1 .271-.445z"/>
+                                </svg>
+                            </div>
+                            <span class="gallery-item-info" style="background-color: mediumseagreen">{{ item.name.split('.').pop() }}</span>
+                        </template>
+
+                        <template v-else-if="isGif(item.name)">
+                            <img :src="'/downloads/' + item.path" class="hover-gif" loading="lazy">
+                            <span class="gallery-item-info" style="background-color: deepskyblue">Gif</span>
+                        </template>
+
+                        <img v-else :src="'/downloads/' + item.path" loading="lazy">
+                    </template>
                 </div>
                 
                 <!-- Loading indicator -->
@@ -229,4 +282,5 @@ export default {
         </div>
     `
 }
+
 

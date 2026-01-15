@@ -3,6 +3,7 @@ import { RedditPost, Config } from '../../types';
 import { LoggerService } from '../LoggerService';
 import { DatabaseService } from '../DatabaseService';
 import { FileSystemService } from '../FileSystemService';
+import { ThumbnailService } from '../ThumbnailService';
 import { singleton, inject } from 'tsyringe';
 import { CONFIG_TOKEN } from '../../config/tokens';
 import * as path from 'path';
@@ -16,7 +17,8 @@ export class DownloadManager {
     @inject(LoggerService) private loggerService: LoggerService,
     @inject(CONFIG_TOKEN) private config: Config,
     @inject(DatabaseService) private dbService: DatabaseService,
-    @inject(FileSystemService) private fsService: FileSystemService
+    @inject(FileSystemService) private fsService: FileSystemService,
+    @inject(ThumbnailService) private thumbnailService: ThumbnailService
   ) {}
 
   public registerDownloader(downloader: Downloader): void {
@@ -71,6 +73,13 @@ export class DownloadManager {
            const relativePath = `${relativeDir}/${filename}`;
            await this.dbService.addDownload(post, filename, relativePath, downloadSource);
         }
+
+        // Generate thumbnail for the downloaded file
+        const relativeDir = path.basename(targetDir);
+        const relativePath = `${relativeDir}/${filename}`;
+        const filePath = path.join(targetDir, filename);
+        await this.thumbnailService.generateThumbnail(filePath, relativePath);
+
         return;
       }
     }

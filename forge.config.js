@@ -4,6 +4,13 @@ const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 module.exports = {
   packagerConfig: {
     asar: true,
+    ignore: [
+      /^\/data/,
+      /^\/out/,
+      /^\/src/,
+      /^\/\.git/,
+      /^\/__tests__/
+    ]
   },
   rebuildConfig: {},
   makers: [

@@ -569,3 +569,75 @@ input:focus, select:focus {
     border-radius: 4px;
     opacity: 0.55;
 }
+
+/* Video overlay for thumbnails */
+.video-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    transition: opacity 0.2s;
+}
+
+.gallery-item:hover .video-overlay {
+    opacity: 0.7;
+}
+
+/* Thumbnail generation banner */
+.thumbnail-banner {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.thumbnail-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+
+.thumbnail-banner .spinner {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.thumbnail-banner-progress {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    height: 6px;
+    overflow: hidden;
+}
+
+.thumbnail-banner-progress-bar {
+    background: white;
+    height: 100%;
+    transition: width 0.3s ease;
+    border-radius: 4px;
+}

@@ -1,12 +1,28 @@
 import 'reflect-metadata';
-import { app, BrowserWindow, dialog } from 'electron';
-import { WebRunner } from '../runners/WebRunner';
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import type { WebRunner as WebRunnerType } from '../runners/WebRunner';
+import * as path from 'path';
+import * as fs from 'fs';
 
 let serverStarted = false;
-let webRunner: WebRunner | null = null;
+let webRunner: WebRunnerType | null = null;
 
 async function startServer() {
   if (!serverStarted) {
+    // Set DATA_DIR to a writable location in userData
+    const userDataPath = app.getPath('userData');
+    const dataPath = path.join(userDataPath, 'data');
+    
+    if (!fs.existsSync(dataPath)) {
+      fs.mkdirSync(dataPath, { recursive: true });
+    }
+    
+    process.env.DATA_DIR = dataPath;
+    console.log(`DATA_DIR set to: ${process.env.DATA_DIR}`);
+
+    // Dynamically import WebRunner to ensure it uses the new DATA_DIR env var
+    const { WebRunner } = await import('../runners/WebRunner');
+    
     webRunner = new WebRunner();
     // Pass port: 0 to let the OS assign an available port
     await webRunner.run({ openBrowser: false, port: 0 });
@@ -21,6 +37,7 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
     },
   });
 
@@ -56,6 +73,17 @@ function createWindow() {
     }
   });
 }
+
+// IPC handler for opening folders
+ipcMain.handle('open-folder', async (event, folderPath: string) => {
+  try {
+    await shell.openPath(folderPath);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to open folder:', error);
+    return { success: false, error: String(error) };
+  }
+});
 
 app.whenReady().then(async () => {
   await startServer();

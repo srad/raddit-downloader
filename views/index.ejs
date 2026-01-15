@@ -12,12 +12,34 @@
 
 <!-- Header -->
 <div class="header">
+    <!-- Thumbnail Generation Banner -->
+    <div id="thumbnail-banner" class="thumbnail-banner" style="display: none;">
+        <div class="thumbnail-banner-content">
+            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16" class="spinner">
+                <path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/>
+                <path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/>
+            </svg>
+            <span id="thumbnail-banner-text">Generating thumbnails...</span>
+        </div>
+        <div id="thumbnail-banner-progress" class="thumbnail-banner-progress">
+            <div id="thumbnail-banner-progress-bar" class="thumbnail-banner-progress-bar" style="width: 0%;"></div>
+        </div>
+    </div>
+
     <div class="header-top">
         <div class="logo">
             <span>Raddit Downloader</span>
             <span class="logo-version">v<%= version %></span>
         </div>
         <div class="header-actions">
+            <button class="btn btn-secondary" onclick="openDataFolder()">
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"
+                     style="vertical-align: -2px; margin-right: 6px;">
+                    <path d="M.54 3.87.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.826a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31zM2.19 4a1 1 0 0 0-.996 1.09l.637 7a1 1 0 0 0 .995.91h10.348a1 1 0 0 0 .995-.91l.637-7A1 1 0 0 0 13.81 4H2.19z"/>
+                    <path d="M13.5 10.5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5v1zm-3 0a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5v1zm-3 0a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5v1z"/>
+                </svg>
+                Open Folder
+            </button>
             <button class="btn btn-secondary" onclick="toggleLogs()">
                 <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"
                      style="vertical-align: -2px; margin-right: 6px;">

@@ -20,6 +20,7 @@ import { LinkDownloader } from '../services/download/LinkDownloader';
 import { GalleryDownloader } from '../services/download/GalleryDownloader';
 import { YouTubeDownloader } from '../services/download/YouTubeDownloader';
 import { RedgifsDownloader } from '../services/download/RedgifsDownloader';
+import { ThumbnailService } from '../services/ThumbnailService';
 import { CONFIG_TOKEN, DB_PATH_TOKEN } from '../config/tokens';
 import { ALL_POSTS, DATA_DIR } from '../config/constants';
 import { Config } from '../types';
@@ -56,6 +57,164 @@ export class WebRunner extends EventEmitter implements Runner {
     return this.isRunning;
   }
 
+  /**
+   * Index and generate missing thumbnails in the background
+   * This runs on startup to ensure all files have thumbnails
+   */
+  private async indexMissingThumbnails(thumbnailService: ThumbnailService, downloadsDir: string): Promise<void> {
+    console.log('Indexing files for missing thumbnails...');
+
+    // First, count total files that need thumbnails
+    const filesToProcess = await this.countFilesNeedingThumbnails(thumbnailService, downloadsDir, downloadsDir);
+
+    if (filesToProcess === 0) {
+      console.log('✓ All files already have thumbnails');
+      return;
+    }
+
+    // Emit start event
+    this.io.emit('thumbnail_generation', {
+      status: 'started',
+      total: filesToProcess,
+      processed: 0
+    });
+
+    let generatedCount = 0;
+    let skippedCount = 0;
+
+    try {
+      const result = await this.processDirectoryForThumbnails(
+        thumbnailService,
+        downloadsDir,
+        downloadsDir,
+        filesToProcess,
+        (processed) => {
+          // Emit progress updates
+          this.io.emit('thumbnail_generation', {
+            status: 'processing',
+            total: filesToProcess,
+            processed: processed
+          });
+        }
+      );
+
+      generatedCount = result.generated;
+      skippedCount = result.skipped;
+
+      if (generatedCount > 0) {
+        console.log(`✓ Generated ${generatedCount} thumbnail(s)`);
+      }
+      if (skippedCount > 0) {
+        console.log(`⚠ Skipped ${skippedCount} file(s) (corrupted or unsupported format)`);
+      }
+
+      // Emit completion event
+      this.io.emit('thumbnail_generation', {
+        status: 'completed',
+        total: filesToProcess,
+        processed: generatedCount,
+        skipped: skippedCount
+      });
+    } catch (error) {
+      console.error('Error during thumbnail indexing:', error);
+      this.io.emit('thumbnail_generation', {
+        status: 'error',
+        error: String(error)
+      });
+    }
+  }
+
+  private async countFilesNeedingThumbnails(
+    thumbnailService: ThumbnailService,
+    baseDir: string,
+    currentDir: string
+  ): Promise<number> {
+    let count = 0;
+
+    try {
+      const items = await fs.readdir(currentDir, { withFileTypes: true });
+
+      for (const item of items) {
+        const itemPath = path.join(currentDir, item.name);
+
+        if (item.isDirectory()) {
+          count += await this.countFilesNeedingThumbnails(thumbnailService, baseDir, itemPath);
+        } else if (item.isFile()) {
+          const ext = path.extname(item.name).toLowerCase();
+          const isMedia = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.mp4', '.webm', '.gifv', '.mov', '.avi', '.mkv'].includes(ext);
+
+          if (isMedia) {
+            const relativePath = path.relative(baseDir, itemPath).replace(/\\/g, '/');
+            const thumbnailPath = thumbnailService.getThumbnailPath(relativePath);
+            if (!thumbnailPath) {
+              count++;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error(`Error counting files in ${currentDir}:`, error);
+    }
+
+    return count;
+  }
+
+  private async processDirectoryForThumbnails(
+    thumbnailService: ThumbnailService,
+    baseDir: string,
+    currentDir: string,
+    totalFiles: number,
+    onProgress: (processed: number) => void
+  ): Promise<{ generated: number; skipped: number }> {
+    let generatedCount = 0;
+    let skippedCount = 0;
+
+    try {
+      const items = await fs.readdir(currentDir, { withFileTypes: true });
+
+      for (const item of items) {
+        const itemPath = path.join(currentDir, item.name);
+
+        if (item.isDirectory()) {
+          // Recursively process subdirectories
+          const result = await this.processDirectoryForThumbnails(
+            thumbnailService,
+            baseDir,
+            itemPath,
+            totalFiles,
+            onProgress
+          );
+          generatedCount += result.generated;
+          skippedCount += result.skipped;
+        } else if (item.isFile()) {
+          // Check if file needs a thumbnail
+          const ext = path.extname(item.name).toLowerCase();
+          const isMedia = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.mp4', '.webm', '.gifv', '.mov', '.avi', '.mkv'].includes(ext);
+
+          if (isMedia) {
+            const relativePath = path.relative(baseDir, itemPath).replace(/\\/g, '/');
+            const thumbnailPath = thumbnailService.getThumbnailPath(relativePath);
+
+            // Generate thumbnail if it doesn't exist
+            if (!thumbnailPath) {
+              const result = await thumbnailService.generateThumbnail(itemPath, relativePath, true);
+              if (result) {
+                generatedCount++;
+                onProgress(generatedCount);
+              } else {
+                skippedCount++;
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error(`Error processing directory ${currentDir}:`, error);
+    }
+
+    return { generated: generatedCount, skipped: skippedCount };
+  }
+
   async run(options: { openBrowser?: boolean; port?: number } = {}): Promise<void> {
     const { openBrowser = true, port = 3000 } = options;
     this.port = port;
@@ -71,8 +230,24 @@ export class WebRunner extends EventEmitter implements Runner {
 
     this.dbService = container.resolve(DatabaseService);
 
+    // Initialize thumbnail service
+    const thumbnailService = container.resolve(ThumbnailService);
+    await thumbnailService.initialize();
+
     await this.setupRoutes();
     this.setupSockets();
+
+    // Index and generate missing thumbnails in background
+    // Wait for socket connections (important for desktop/electron mode)
+    const downloadsDir = path.join(DATA_DIR, 'downloads');
+    if (await FileUtils.exists(downloadsDir)) {
+        // Delay to allow browser/electron window to connect to socket.io
+        setTimeout(() => {
+            this.indexMissingThumbnails(thumbnailService, downloadsDir).catch(err => {
+                console.error('Background thumbnail indexing failed:', err);
+            });
+        }, 2000); // 2 second delay for desktop runner
+    }
 
     return new Promise((resolve, reject) => {
       this.server.on('error', (err) => {
@@ -105,6 +280,12 @@ export class WebRunner extends EventEmitter implements Runner {
     }
     this.app.use('/downloads', express.static(downloadsDir));
 
+    const thumbnailsDir = path.join(DATA_DIR, 'thumbnails');
+    if (!(await FileUtils.exists(thumbnailsDir))) {
+        await fs.mkdir(thumbnailsDir, { recursive: true });
+    }
+    this.app.use('/thumbnails', express.static(thumbnailsDir));
+
     this.app.get('/', async (req, res) => {
       res.render('index', { version: require('../../package.json').version });
     });
@@ -114,12 +295,17 @@ export class WebRunner extends EventEmitter implements Runner {
         res.json(history);
     });
 
+    this.app.get('/api/data-directory', (req, res) => {
+        res.json({ path: path.join(DATA_DIR, 'downloads') });
+    });
+
     this.app.get('/api/browse', async (req, res) => {
         const relPath = (req.query.path as string) || '';
 
         // Secure path traversal prevention
         const normalizedRelPath = path.normalize(relPath).replace(/^(\.\.[\/\\])+/, '');
         const fullPath = path.resolve(downloadsDir, normalizedRelPath);
+        const thumbnailsDir = path.join(DATA_DIR, 'thumbnails');
 
         // Ensure the resolved path is still within the downloads directory
         if (!fullPath.startsWith(path.resolve(downloadsDir))) {
@@ -156,12 +342,26 @@ export class WebRunner extends EventEmitter implements Runner {
                     size = stats.size;
                 }
 
+                // Check if thumbnail exists for this file
+                const itemRelativePath = path.join(normalizedRelPath, item.name).replace(/\\/g, '/');
+                const ext = path.extname(item.name).toLowerCase();
+                let thumbnailPath = null;
+
+                if (!item.isDirectory()) {
+                    const thumbnailRelativePath = itemRelativePath.replace(ext, '.webp');
+                    const thumbnailFullPath = path.join(thumbnailsDir, thumbnailRelativePath);
+                    if (await FileUtils.exists(thumbnailFullPath)) {
+                        thumbnailPath = thumbnailRelativePath;
+                    }
+                }
+
                 return {
                     name: item.name,
                     isDirectory: item.isDirectory(),
-                    path: path.join(normalizedRelPath, item.name).replace(/\\/g, '/'),
+                    path: itemRelativePath,
                     size: size,
-                    fileCount: fileCount
+                    fileCount: fileCount,
+                    thumbnail: thumbnailPath
                 };
             }));
 
@@ -181,30 +381,40 @@ export class WebRunner extends EventEmitter implements Runner {
         const { files } = req.body;
         if (!Array.isArray(files)) return res.status(400).send('Invalid input');
 
+        const thumbnailService = container.resolve(ThumbnailService);
         let deletedCount = 0;
-        files.forEach(async (relPath: string) => {
+
+        // Use for...of to properly await async operations
+        for (const relPath of files) {
             // Secure path traversal prevention
             const normalizedRelPath = path.normalize(relPath).replace(/^(\.\.[\/\\])+/, '');
             const fullPath = path.resolve(downloadsDir, normalizedRelPath);
 
             // Ensure the resolved path is still within the downloads directory
             if (!fullPath.startsWith(path.resolve(downloadsDir))) {
-                return;
+                continue;
             }
 
             if (await FileUtils.exists(fullPath)) {
                 try {
-                    if ((await fs.stat(fullPath)).isDirectory()) {
+                    const stats = await fs.stat(fullPath);
+
+                    if (stats.isDirectory()) {
+                        // Delete folder and its thumbnails
                         await fs.rm(fullPath, { recursive: true, force: true });
+                        await thumbnailService.deleteThumbnailFolder(normalizedRelPath);
                     } else {
+                        // Delete file and its thumbnail
                         await fs.unlink(fullPath);
+                        await thumbnailService.deleteThumbnail(normalizedRelPath);
                     }
                     deletedCount++;
                 } catch (e) {
                     console.error(`Failed to delete ${fullPath}:`, e);
                 }
             }
-        });
+        }
+
         res.json({ success: true, deleted: deletedCount });
     });
 
@@ -279,8 +489,6 @@ export class WebRunner extends EventEmitter implements Runner {
             logVersionInfo: () => {},
         };
 
-        const downloadManager = new DownloadManager(mockLoggerService as any, runConfig, dbService, fsService);
-
         const childContainer = container.createChildContainer();
         const { LoggerService } = await import('../services/LoggerService');
 
@@ -298,6 +506,7 @@ export class WebRunner extends EventEmitter implements Runner {
 
         const orchestrator = new DownloadOrchestrator(runConfig, state, apiService, fsService, scopedDownloadManager);
 
+        let lastRefresh = 0;
         await orchestrator.downloadBatch({
             target: subreddit,
             logger: {log: socketLogger},
@@ -306,9 +515,11 @@ export class WebRunner extends EventEmitter implements Runner {
                 // Emit progress event
                 this.io.emit('progress', { downloaded, total });
 
-                // throttle file refresh
-                if (downloaded % 10 === 0) {
+                // throttle file refresh (max once every 2 seconds)
+                const now = Date.now();
+                if (now - lastRefresh > 2000) {
                     this.io.emit('refresh_files');
+                    lastRefresh = now;
                 }
             }
         });

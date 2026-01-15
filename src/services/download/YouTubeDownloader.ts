@@ -7,7 +7,8 @@ import { injectable, inject } from 'tsyringe';
 import { CONFIG_TOKEN } from '../../config/tokens';
 
 import ytdl from 'ytdl-core';
-import ffmpeg from 'fluent-ffmpeg';
+import { spawn } from 'child_process';
+import ffmpegPath from 'ffmpeg-static';
 import * as fs from 'fs';
 
 @injectable()
@@ -27,7 +28,7 @@ export class YouTubeDownloader implements Downloader {
   async download(post: RedditPost, targetDir: string, filenameBase: string): Promise<string> {
     const filename = `${filenameBase}.mp4`;
 
-    if (!ytdl || !ffmpeg) {
+    if (!ytdl || !ffmpegPath) {
       this.loggerService.log('YouTube download dependencies not available', true);
       return filename;
     }
@@ -59,17 +60,44 @@ export class YouTubeDownloader implements Downloader {
       ]);
 
       await new Promise<void>((resolve, reject) => {
-        ffmpeg()
-          .input(tempVideoPath)
-          .input(audioPath)
-          .output(`${targetDir}/${fileName}`)
-          .on('end', () => {
-            this.fsService.deleteFile(audioPath);
-            this.fsService.deleteFile(tempVideoPath);
+        if (!ffmpegPath) {
+          reject(new Error('ffmpeg binary not found'));
+          return;
+        }
+
+        // Merge video and audio using ffmpeg
+        const args = [
+          '-i', tempVideoPath,
+          '-i', audioPath,
+          '-c:v', 'copy',
+          '-c:a', 'aac',
+          '-y',
+          `${targetDir}/${fileName}`
+        ];
+
+        const ffmpegProcess = spawn(ffmpegPath, args);
+        let stderrOutput = '';
+
+        ffmpegProcess.stderr.on('data', (data) => {
+          stderrOutput += data.toString();
+        });
+
+        ffmpegProcess.on('close', (code) => {
+          this.fsService.deleteFile(audioPath);
+          this.fsService.deleteFile(tempVideoPath);
+
+          if (code !== 0) {
+            reject(new Error(`ffmpeg exited with code ${code}: ${stderrOutput.slice(-200)}`));
+          } else {
             resolve();
-          })
-          .on('error', reject)
-          .run();
+          }
+        });
+
+        ffmpegProcess.on('error', (err) => {
+          this.fsService.deleteFile(audioPath);
+          this.fsService.deleteFile(tempVideoPath);
+          reject(new Error(`Failed to spawn ffmpeg: ${err.message}`));
+        });
       });
 
       return filename;
