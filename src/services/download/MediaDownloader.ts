@@ -58,9 +58,41 @@ export class MediaDownloader implements Downloader {
       }
 
       const response = await fetch(downloadURL, { headers });
-      
+
       if (!response.ok || !response.body) {
         throw new Error(`Failed to fetch media: ${response.statusText} (${response.status})`);
+      }
+
+      // Validate Content-Type to prevent HTML/text files from being saved as images
+      const contentType = response.headers.get('content-type')?.toLowerCase() || '';
+
+      // Check if response is HTML or other text type (error pages, redirects, etc.)
+      if (contentType.includes('text/html') || contentType.includes('application/json') || contentType.includes('text/plain')) {
+        this.loggerService.log(`ERROR: Received ${contentType} instead of media file for: ${downloadURL}`, true);
+        throw new Error(`Invalid content type: ${contentType} (expected image/video)`);
+      }
+
+      // Verify content type matches expected file type
+      const expectedTypes: Record<string, string[]> = {
+        'jpg': ['image/jpeg', 'image/jpg'],
+        'jpeg': ['image/jpeg', 'image/jpg'],
+        'png': ['image/png'],
+        'gif': ['image/gif'],
+        'webp': ['image/webp'],
+        'mp4': ['video/mp4'],
+        'webm': ['video/webm'],
+      };
+
+      const expectedContentTypes = expectedTypes[fileType] || [];
+      const hasValidType = expectedContentTypes.some(type => contentType.includes(type));
+
+      // Only warn if we have an expected type but got something different
+      // (Allow downloads when Content-Type is missing or unknown)
+      if (expectedContentTypes.length > 0 && contentType && !hasValidType && !contentType.includes('application/octet-stream')) {
+        this.loggerService.log(`WARNING: Content-Type mismatch for ${downloadURL}`, true);
+        this.loggerService.log(`  Expected: ${expectedContentTypes.join(' or ')}`, true);
+        this.loggerService.log(`  Received: ${contentType}`, true);
+        this.loggerService.log(`  Continuing download anyway...`, true);
       }
 
       // Convert Web Stream to Node Stream
