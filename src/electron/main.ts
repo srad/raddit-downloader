@@ -1,3 +1,8 @@
+if (require('electron-squirrel-startup')) {
+    require('electron').app.quit();
+    process.exit(0); // Exit immediately
+}
+
 import 'reflect-metadata';
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import type { WebRunner as WebRunnerType } from '../runners/WebRunner';

@@ -1,51 +1,45 @@
-const { FusesPlugin } = require('@electron-forge/plugin-fuses');
-const { FuseV1Options, FuseVersion } = require('@electron/fuses');
+const { version } = require('./package.json');
 
 module.exports = {
-  packagerConfig: {
-    asar: true,
-    ignore: [
-      /^\/data/,
-      /^\/out/,
-      /^\/src/,
-      /^\/\.git/,
-      /^\/__tests__/
-    ]
-  },
-  rebuildConfig: {},
-  makers: [
-    {
-      name: '@electron-forge/maker-squirrel',
-      config: {},
+    packagerConfig: {
+        asar: false, // Keep FALSE to see errors
+        ignore: [
+            /^\/data/,
+            /^\/out/,
+            /^\/src/,
+            /^\/\.git/,
+            /^\/__tests__/,
+            /\/nul$/
+        ]
     },
-    {
-      name: '@electron-forge/maker-zip',
-      platforms: ['darwin'],
-    },
-    {
-      name: '@electron-forge/maker-deb',
-      config: {},
-    },
-    {
-      name: '@electron-forge/maker-rpm',
-      config: {},
-    },
-  ],
-  plugins: [
-    {
-      name: '@electron-forge/plugin-auto-unpack-natives',
-      config: {},
-    },
-    // Fuses are used to enable/disable various Electron functionality
-    // at package time, before code signing the application
-    new FusesPlugin({
-      version: FuseVersion.V1,
-      [FuseV1Options.RunAsNode]: false,
-      [FuseV1Options.EnableCookieEncryption]: true,
-      [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
-      [FuseV1Options.EnableNodeCliInspectArguments]: false,
-      [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,
-      [FuseV1Options.OnlyLoadAppFromAsar]: true,
-    }),
-  ],
+    rebuildConfig: {},
+    makers: [
+        {
+            name: '@electron-forge/maker-squirrel',
+            config: {
+                // Squirrel needs these explicitly to avoid the FileStream error
+                authors: 'srad',
+                description: 'A Reddit post downloader and gallery viewer.',
+                name: 'radditdownloader', // Keep this lowercase, no spaces,
+                setupExe: `RadditDownloader-${version}-Installer.exe`
+            },
+        },
+        {
+            // We add 'win32' here so you get a simple ZIP file too
+            // This is much faster to debug than the Setup.exe
+            name: '@electron-forge/maker-zip',
+            platforms: ['darwin', 'win32'],
+        },
+        {
+            name: '@electron-forge/maker-deb',
+            config: {},
+        },
+        {
+            name: '@electron-forge/maker-rpm',
+            config: {},
+        },
+    ],
+    plugins: [
+        // Plugins commented out as per your setup
+    ],
 };

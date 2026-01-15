@@ -9,8 +9,8 @@ import { DatabaseService } from '../services/DatabaseService';
 import { DownloadManager } from '../services/download/DownloadManager';
 import { DownloadOrchestrator } from '../services/DownloadOrchestrator';
 import { MediaDownloader } from '../services/download/MediaDownloader';
-import { TextDownloader } from '../services/download/TextDownloader';
-import { LinkDownloader } from '../services/download/LinkDownloader';
+// import { TextDownloader } from '../services/download/TextDownloader';
+// import { LinkDownloader } from '../services/download/LinkDownloader';
 import { GalleryDownloader } from '../services/download/GalleryDownloader';
 import { YouTubeDownloader } from '../services/download/YouTubeDownloader';
 import { RedgifsDownloader } from '../services/download/RedgifsDownloader';
@@ -72,10 +72,10 @@ export class CliRunner implements Runner {
 
     // 5. Setup Downloaders (order matters - first match wins)
     downloadManager.registerDownloader(container.resolve(GalleryDownloader));
-    downloadManager.registerDownloader(container.resolve(TextDownloader));
+    //downloadManager.registerDownloader(container.resolve(TextDownloader));
     downloadManager.registerDownloader(container.resolve(YouTubeDownloader));
     downloadManager.registerDownloader(container.resolve(RedgifsDownloader)); // Before MediaDownloader
-    downloadManager.registerDownloader(container.resolve(LinkDownloader));
+    //downloadManager.registerDownloader(container.resolve(LinkDownloader));
     downloadManager.registerDownloader(container.resolve(MediaDownloader));
 
     // 6. Logic

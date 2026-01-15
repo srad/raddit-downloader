@@ -15,8 +15,8 @@ import { DatabaseService } from '../services/DatabaseService';
 import { DownloadManager } from '../services/download/DownloadManager';
 import { DownloadOrchestrator } from '../services/DownloadOrchestrator';
 import { MediaDownloader } from '../services/download/MediaDownloader';
-import { TextDownloader } from '../services/download/TextDownloader';
-import { LinkDownloader } from '../services/download/LinkDownloader';
+//import { TextDownloader } from '../services/download/TextDownloader';
+//import { LinkDownloader } from '../services/download/LinkDownloader';
 import { GalleryDownloader } from '../services/download/GalleryDownloader';
 import { YouTubeDownloader } from '../services/download/YouTubeDownloader';
 import { RedgifsDownloader } from '../services/download/RedgifsDownloader';
@@ -498,10 +498,10 @@ export class WebRunner extends EventEmitter implements Runner {
         const scopedDownloadManager = childContainer.resolve(DownloadManager);
 
         scopedDownloadManager.registerDownloader(childContainer.resolve(GalleryDownloader));
-        scopedDownloadManager.registerDownloader(childContainer.resolve(TextDownloader));
+        //scopedDownloadManager.registerDownloader(childContainer.resolve(TextDownloader));
         scopedDownloadManager.registerDownloader(childContainer.resolve(YouTubeDownloader));
         scopedDownloadManager.registerDownloader(childContainer.resolve(RedgifsDownloader));
-        scopedDownloadManager.registerDownloader(childContainer.resolve(LinkDownloader));
+        //scopedDownloadManager.registerDownloader(childContainer.resolve(LinkDownloader));
         scopedDownloadManager.registerDownloader(childContainer.resolve(MediaDownloader));
 
         const orchestrator = new DownloadOrchestrator(runConfig, state, apiService, fsService, scopedDownloadManager);
