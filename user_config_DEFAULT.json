@@ -36,6 +36,8 @@
     "redownload_posts": false,
     "use_history_database": true,
     "group_gallery_images": false,
+    "prevent_duplicates": true,
+    "duplicate_threshold": 5,
     "detailed_logs": false,
     "rate_limit_delay_ms": 2000
 }

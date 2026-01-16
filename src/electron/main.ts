@@ -32,24 +32,60 @@ async function startServer() {
     // Pass port: 0 to let the OS assign an available port
     await webRunner.run({ openBrowser: false, port: 0 });
     serverStarted = true;
+
+    process.env.BACKEND_PORT = String(webRunner.getPort());
   }
 }
 
-function createWindow() {
+async function createWindow() {
+  // Read version directly from package.json
+  const packageJsonPath = path.join(__dirname, '../../package.json');
+  let appVersion = '';
+  try {
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    appVersion = packageJson.version;
+  } catch (err) {
+    console.error('Failed to read package.json version:', err);
+  }
+  
+  console.log(`Starting app version: ${appVersion}`);
+  
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
+    frame: false, // Frameless window
+    titleBarStyle: 'hidden', // Required for custom title bar on some platforms
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
+      additionalArguments: [`--app-version=${appVersion}`]
     },
   });
 
   win.setMenu(null);
-  
-  const port = webRunner?.getPort() || 3000;
-  win.loadURL(`http://localhost:${port}`);
+
+  // IPC handlers for window controls
+  ipcMain.on('window-minimize', () => win.minimize());
+  ipcMain.on('window-maximize', () => {
+    if (win.isMaximized()) win.unmaximize();
+    else win.maximize();
+  });
+  ipcMain.on('window-close', () => win.close());
+  ipcMain.handle('window-is-maximized', () => win.isMaximized());
+
+  win.on('maximize', () => win.webContents.send('window-state-change', true));
+  win.on('unmaximize', () => win.webContents.send('window-state-change', false));
+
+  // Redirect renderer console to main process console
+  win.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    const levels = ['DEBUG', 'INFO', 'WARN', 'ERROR'];
+    const levelStr = levels[level] || 'INFO';
+    console.log(`[Renderer][${levelStr}] ${message} (at ${sourceId}:${line})`);
+  });
+
+  const vueIndexPath = path.join(__dirname, '../../public/index.html');
+  await win.loadFile(vueIndexPath);
 
   // Handle status changes
   if (webRunner) {
@@ -91,8 +127,9 @@ ipcMain.handle('open-folder', async (event, folderPath: string) => {
 });
 
 app.whenReady().then(async () => {
+  process.env.APP_VERSION = app.getVersion();
   await startServer();
-  createWindow();
+  await createWindow();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

@@ -107,7 +107,7 @@ describe('DownloadOrchestrator', () => {
     } as any;
 
     mockDownloadManager = {
-      download: jest.fn().mockResolvedValue(undefined),
+      download: jest.fn().mockResolvedValue(true),
     } as any;
 
     mockLogger = {

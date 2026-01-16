@@ -17,19 +17,6 @@ jest.mock('sharp', () => {
     toFile: jest.fn().mockResolvedValue(undefined),
   }));
 });
-jest.mock('fluent-ffmpeg', () => {
-  const mockFfmpeg = jest.fn(() => ({
-    screenshots: jest.fn().mockReturnThis(),
-    on: jest.fn(function(event: string, handler: Function) {
-      if (event === 'end') {
-        // Simulate successful screenshot generation
-        setTimeout(() => handler(), 10);
-      }
-      return this;
-    }),
-  }));
-  return mockFfmpeg;
-});
 
 describe('ThumbnailService', () => {
   let thumbnailService: ThumbnailService;

@@ -10,7 +10,8 @@ export interface RateLimitInfo {
 
 @singleton()
 export class RedditApiService {
-  private userAgent = 'RadditDownloader/2.0 (by /u/reddit; https://github.com/srad/raddit-downloader)';
+  private userAgent =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
   private lastRequestTime = 0;
   private readonly minRequestDelay = 2000; // 2 seconds for safety (30 req/min)
   private rateLimitInfo: RateLimitInfo | null = null;
@@ -41,9 +42,9 @@ export class RedditApiService {
     time: string,
     limit: number,
     after: string = '',
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ): Promise<RedditApiResponse> {
-    const url = `https://www.reddit.com/r/${subreddit}/${sorting}/.json?sort=${sorting}&t=${time}&limit=${limit}&after=${after}`;
+    const url = `https://old.reddit.com/r/${subreddit}/${sorting}/.json?sort=${sorting}&t=${time}&limit=${limit}&after=${after}`;
     return this.fetchJson<RedditApiResponse>(url, signal);
   }
 
@@ -51,19 +52,20 @@ export class RedditApiService {
     username: string,
     limit: number,
     after: string = '',
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ): Promise<RedditApiResponse> {
-    const url = `https://www.reddit.com/user/${username}/submitted/.json?limit=${limit}&after=${after}`;
+    const url = `https://old.reddit.com/user/${username}/submitted/.json?limit=${limit}&after=${after}`;
     return this.fetchJson<RedditApiResponse>(url, signal);
   }
 
   public async fetchPost(url: string, signal?: AbortSignal): Promise<RedditApiResponse[]> {
-    return this.fetchJson<RedditApiResponse[]>(url + '.json', signal);
+    const oldUrl = url.replace('www.reddit.com', 'old.reddit.com');
+    return this.fetchJson<RedditApiResponse[]>(oldUrl + '.json', signal);
   }
 
   private async fetchJson<T = RedditApiResponse>(url: string, signal?: AbortSignal, retryCount = 0): Promise<T> {
     if (signal?.aborted) {
-        throw new Error('Aborted');
+      throw new Error('Aborted');
     }
 
     // Check if we need to wait for rate limit reset
@@ -73,7 +75,7 @@ export class RedditApiService {
       if (now < resetTime) {
         const waitTime = resetTime - now + 1000; // Add 1 second buffer
         this.log(`Rate limit exhausted. Waiting ${Math.round(waitTime / 1000)}s until reset...`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
       }
     }
 
@@ -81,11 +83,11 @@ export class RedditApiService {
     const now = Date.now();
     const timeSinceLast = now - this.lastRequestTime;
     if (timeSinceLast < this.minRequestDelay) {
-        const wait = this.minRequestDelay - timeSinceLast;
-        this.lastRequestTime = now + wait; // Reserve this time slot before waiting
-        await new Promise(resolve => setTimeout(resolve, wait));
+      const wait = this.minRequestDelay - timeSinceLast;
+      this.lastRequestTime = now + wait; // Reserve this time slot before waiting
+      await new Promise((resolve) => setTimeout(resolve, wait));
     } else {
-        this.lastRequestTime = now;
+      this.lastRequestTime = now;
     }
 
     // Timeout Controller
@@ -94,13 +96,21 @@ export class RedditApiService {
 
     // Link external signal to internal controller
     if (signal) {
-        signal.addEventListener('abort', () => controller.abort());
+      signal.addEventListener('abort', () => controller.abort());
     }
 
     try {
       const response = await fetch(url, {
         headers: {
           'User-Agent': this.userAgent,
+          'Accept': 'application/json, text/plain, */*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Referer': 'https://www.reddit.com/',
+          'DNT': '1',
+          'Connection': 'keep-alive',
+          'Sec-Fetch-Dest': 'empty',
+          'Sec-Fetch-Mode': 'cors',
+          'Sec-Fetch-Site': 'same-origin',
         },
         signal: controller.signal,
       });
@@ -120,16 +130,17 @@ export class RedditApiService {
         this.log(`Rate limit headers: ${JSON.stringify(rateLimitHeaders)}`);
 
         // Check if this is a hard block (403 with no useful headers)
-        const isHardBlock = response.status === 403 &&
-                           !rateLimitHeaders.remaining &&
-                           !rateLimitHeaders.reset &&
-                           (!rateLimitHeaders.retryAfter || rateLimitHeaders.retryAfter === '0');
+        const isHardBlock =
+          response.status === 403 &&
+          !rateLimitHeaders.remaining &&
+          !rateLimitHeaders.reset &&
+          (!rateLimitHeaders.retryAfter || rateLimitHeaders.retryAfter === '0');
 
         if (isHardBlock) {
           throw new Error(
             `Access forbidden (403). Your IP appears to be blocked by Reddit. ` +
-            `Try: 1) Wait 30-60 minutes, 2) Use a VPN, 3) Change your IP address. ` +
-            `Reddit provided no rate limit information, suggesting a hard IP block.`
+              `Try: 1) Wait 30-60 minutes, 2) Use a VPN, 3) Change your IP address. ` +
+              `Reddit provided no rate limit information, suggesting a hard IP block.`,
           );
         }
 
@@ -137,14 +148,17 @@ export class RedditApiService {
           const waitTime = this.getRetryWaitTime(response, retryCount);
 
           const statusMsg = response.status === 429 ? 'Rate limited' : 'Access forbidden';
-          this.log(`${statusMsg} (${response.status}). Retrying in ${Math.round(waitTime / 1000)}s... (Attempt ${retryCount + 1}/${this.maxRetries})`);
+          this.log(
+            `${statusMsg} (${response.status}). Retrying in ${Math.round(waitTime / 1000)}s... (Attempt ${retryCount + 1}/${this.maxRetries})`,
+          );
 
-          await new Promise(resolve => setTimeout(resolve, waitTime));
+          await new Promise((resolve) => setTimeout(resolve, waitTime));
           return this.fetchJson<T>(url, signal, retryCount + 1);
         } else {
-          const errorMsg = response.status === 429
-            ? `Rate limit exceeded after ${this.maxRetries} retries. Reddit's rate limit window may need to reset.`
-            : `Access forbidden (403) after ${this.maxRetries} retries. Your IP may be temporarily blocked by Reddit.`;
+          const errorMsg =
+            response.status === 429
+              ? `Rate limit exceeded after ${this.maxRetries} retries. Reddit's rate limit window may need to reset.`
+              : `Access forbidden (403) after ${this.maxRetries} retries. Your IP may be temporarily blocked by Reddit.`;
           throw new Error(errorMsg);
         }
       }
@@ -189,7 +203,8 @@ export class RedditApiService {
         const resetTime = resetTimestamp * 1000;
         const waitTime = resetTime - now + 1000; // Add 1s buffer
 
-        if (waitTime > minWaitTime && waitTime < 300000) { // Between 5s and 5 minutes
+        if (waitTime > minWaitTime && waitTime < 300000) {
+          // Between 5s and 5 minutes
           const resetDate = new Date(resetTime);
           this.log(`Rate limit resets at ${resetDate.toLocaleTimeString()} (from X-Ratelimit-Reset header)`);
           return waitTime;
@@ -221,21 +236,20 @@ export class RedditApiService {
       // Log warning if we're getting close to the limit
       if (this.rateLimitInfo.remaining < 10) {
         const resetDate = new Date(this.rateLimitInfo.reset * 1000);
-        this.log(`Warning: Only ${Math.floor(this.rateLimitInfo.remaining)} requests remaining until ${resetDate.toLocaleTimeString()}`);
+        this.log(
+          `Warning: Only ${Math.floor(this.rateLimitInfo.remaining)} requests remaining until ${resetDate.toLocaleTimeString()}`,
+        );
       }
     }
   }
 
   public async checkUpdates(): Promise<string | null> {
     try {
-      const response = await fetch(
-        'https://api.github.com/repos/srad/raddit-downloader/releases/latest',
-        {
-          headers: { 'User-Agent': 'Downloader' },
-        },
-      );
+      const response = await fetch('https://api.github.com/repos/srad/raddit-downloader/releases/latest', {
+        headers: { 'User-Agent': 'Downloader' },
+      });
       if (!response.ok) return null;
-      const data = await response.json() as { tag_name: string };
+      const data = (await response.json()) as { tag_name: string };
       return data.tag_name;
     } catch {
       return null;

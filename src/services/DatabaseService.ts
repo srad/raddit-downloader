@@ -15,6 +15,7 @@ export interface DownloadRecord {
   filename: string;
   path: string;
   downloaded_at: string;
+  phash: string | null; // Perceptual hash: single hex string for images, JSON array for videos
 }
 
 @singleton()
@@ -64,6 +65,9 @@ export class DatabaseService {
       // Migrate old databases that have 'subreddit' column
       this.migrateToSourceColumn();
 
+      // Migrate to add phash column if not exists
+      this.migratePHashColumn();
+
       // Create indexes for frequently queried columns
       this.createIndexes();
     });
@@ -102,11 +106,32 @@ export class DatabaseService {
     });
   }
 
+  private migratePHashColumn(): void {
+    // Check if we need to add the phash column
+    this.db.all("PRAGMA table_info(downloads)", (err, columns: Array<{name: string}>) => {
+      if (err) return;
+
+      const hasPhash = columns.some(col => col.name === 'phash');
+
+      if (!hasPhash) {
+        // Add phash column
+        this.db.run("ALTER TABLE downloads ADD COLUMN phash TEXT", (err) => {
+          if (err) {
+            this.loggerService.log(`Database migration error (phash): ${err.message}`, true);
+          } else {
+            this.loggerService.log(`Database migrated: 'phash' column added for duplicate detection`, true);
+          }
+        });
+      }
+    });
+  }
+
   private createIndexes(): void {
     const indexes = [
       'CREATE INDEX IF NOT EXISTS idx_downloaded_at ON downloads(downloaded_at DESC)',
       'CREATE INDEX IF NOT EXISTS idx_source ON downloads(source)',
-      'CREATE INDEX IF NOT EXISTS idx_source_downloaded ON downloads(source, downloaded_at DESC)'
+      'CREATE INDEX IF NOT EXISTS idx_source_downloaded ON downloads(source, downloaded_at DESC)',
+      'CREATE INDEX IF NOT EXISTS idx_phash ON downloads(phash)'
     ];
 
     indexes.forEach((sql) => {
@@ -148,10 +173,30 @@ export class DatabaseService {
     });
   }
 
-  public async addDownload(post: RedditPost, filename: string, filePath: string, source: string): Promise<void> {
+  /**
+   * Get multiple download records by their paths
+   */
+  public async getDownloadRecordsByPaths(paths: string[]): Promise<DownloadRecord[]> {
+    if (paths.length === 0) return [];
+    
+    return new Promise((resolve, reject) => {
+      const placeholders = paths.map(() => '?').join(',');
+      const sql = `SELECT * FROM downloads WHERE path IN (${placeholders})`;
+      
+      this.db.all(sql, paths, (err, rows: DownloadRecord[]) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(rows || []);
+        }
+      });
+    });
+  }
+
+  public async addDownload(post: RedditPost, filename: string, filePath: string, source: string, phash?: string | null): Promise<number> {
     const sql = `
-      INSERT OR IGNORE INTO downloads (post_id, source, url, filename, path, downloaded_at)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT OR IGNORE INTO downloads (post_id, source, url, filename, path, downloaded_at, phash)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `;
     const params = [
       post.name, // Fullname (t3_...)
@@ -160,15 +205,15 @@ export class DatabaseService {
       filename,
       filePath,
       new Date().toISOString(),
+      phash || null,
     ];
 
     return new Promise((resolve, reject) => {
-      this.db.run(sql, params, (err) => {
+      this.db.run(sql, params, function (err) {
         if (err) {
-          this.loggerService.log(`Database insert error: ${err.message}`, true);
           reject(err);
         } else {
-          resolve();
+          resolve(this.lastID);
         }
       });
     });
@@ -199,6 +244,102 @@ export class DatabaseService {
   // Deprecated: Use getSourceHistory instead
   public async getSubredditHistory(limit: number = 20): Promise<string[]> {
     return this.getSourceHistory(limit);
+  }
+
+  /**
+   * Get all download records that have a phash (for duplicate detection)
+   */
+  public async getAllDownloadsWithPhash(): Promise<DownloadRecord[]> {
+    return new Promise((resolve, reject) => {
+      this.db.all(
+        'SELECT * FROM downloads WHERE phash IS NOT NULL',
+        [],
+        (err, rows: DownloadRecord[]) => {
+          if (err) {
+            this.loggerService.log(`Database error: ${err.message}`, true);
+            reject(err);
+          } else {
+            resolve(rows || []);
+          }
+        }
+      );
+    });
+  }
+
+  /**
+   * Get all download records without a phash (for migration/backfill)
+   */
+  public async getDownloadsWithoutPhash(): Promise<DownloadRecord[]> {
+    return new Promise((resolve, reject) => {
+      this.db.all(
+        'SELECT * FROM downloads WHERE phash IS NULL',
+        [],
+        (err, rows: DownloadRecord[]) => {
+          if (err) {
+            this.loggerService.log(`Database error: ${err.message}`, true);
+            reject(err);
+          } else {
+            resolve(rows || []);
+          }
+        }
+      );
+    });
+  }
+
+  /**
+   * Update phash for an existing download record
+   */
+  public async updatePhash(id: number, phash: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.db.run(
+        'UPDATE downloads SET phash = ? WHERE id = ?',
+        [phash, id],
+        (err) => {
+          if (err) {
+            this.loggerService.log(`Database update error: ${err.message}`, true);
+            reject(err);
+          } else {
+            resolve();
+          }
+        }
+      );
+    });
+  }
+
+  /**
+   * Delete a download record by ID (for duplicate removal)
+   */
+  public async deleteDownload(id: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.db.run(
+        'DELETE FROM downloads WHERE id = ?',
+        [id],
+        (err) => {
+          if (err) {
+            this.loggerService.log(`Database delete error: ${err.message}`, true);
+            reject(err);
+          } else {
+            resolve();
+          }
+        }
+      );
+    });
+  }
+
+  /**
+   * Get the total number of downloads in the database
+   */
+  public async getDownloadCount(): Promise<number> {
+    return new Promise((resolve, reject) => {
+      this.db.get('SELECT COUNT(*) as count FROM downloads', [], (err, row: { count: number }) => {
+        if (err) {
+          this.loggerService.log(`Database error (count): ${err.message}`, true);
+          reject(err);
+        } else {
+          resolve(row.count || 0);
+        }
+      });
+    });
   }
 
   public close(): void {

@@ -21,9 +21,10 @@ import { GalleryDownloader } from '../services/download/GalleryDownloader';
 import { YouTubeDownloader } from '../services/download/YouTubeDownloader';
 import { RedgifsDownloader } from '../services/download/RedgifsDownloader';
 import { ThumbnailService } from '../services/ThumbnailService';
+import { PhashService } from '../services/PhashService';
 import { CONFIG_TOKEN, DB_PATH_TOKEN } from '../config/tokens';
 import { ALL_POSTS, DATA_DIR } from '../config/constants';
-import { Config } from '../types';
+import { Config, FileItem } from '../types';
 import { FileUtils } from "../utils/fileUtils"
 
 @injectable()
@@ -35,6 +36,7 @@ export class WebRunner extends EventEmitter implements Runner {
   private isRunning = false;
   private dbService!: DatabaseService;
   private abortController: AbortController | null = null;
+  private duplicateScanController: AbortController | null = null;
 
   constructor() {
     super();
@@ -42,9 +44,6 @@ export class WebRunner extends EventEmitter implements Runner {
     this.server = new Server(this.app);
     this.io = new SocketIOServer(this.server);
 
-    this.app.set('view engine', 'ejs');
-    this.app.engine('ejs', require('ejs').__express);
-    this.app.set('views', path.join(__dirname, '../../views'));
     this.app.use(express.urlencoded({ extended: true }));
     this.app.use(express.json());
   }
@@ -118,6 +117,98 @@ export class WebRunner extends EventEmitter implements Runner {
     } catch (error) {
       console.error('Error during thumbnail indexing:', error);
       this.io.emit('thumbnail_generation', {
+        status: 'error',
+        error: String(error)
+      });
+    }
+  }
+
+  /**
+   * Index and generate missing perceptual hashes in the background
+   * This runs on startup to ensure all files have phashes for duplicate detection
+   */
+  private async indexMissingPhashes(
+    phashService: PhashService,
+    fsService: FileSystemService,
+    downloadsDir: string
+  ): Promise<void> {
+    console.log('Checking for files missing perceptual hashes...');
+
+    // Query database for records without phash
+    const records = await this.dbService.getDownloadsWithoutPhash();
+
+    if (records.length === 0) {
+      console.log('✓ All files have perceptual hashes');
+      return;
+    }
+
+    console.log(`Found ${records.length} files without phash. Generating in background...`);
+
+    // Emit start event
+    this.io.emit('phash_generation', {
+      status: 'started',
+      total: records.length,
+      processed: 0
+    });
+
+    let processed = 0;
+    let generated = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    try {
+      for (const record of records) {
+        const fullPath = path.join(downloadsDir, record.path);
+        processed++;
+
+        // Check if file exists
+        if (!fsService.fileExists(fullPath)) {
+          skipped++;
+          continue;
+        }
+
+        // Generate phash
+        try {
+          const phash = await phashService.generatePhash(fullPath);
+          if (phash) {
+            const phashStr = Array.isArray(phash) ? JSON.stringify(phash) : phash;
+            await this.dbService.updatePhash(record.id, phashStr);
+            generated++;
+          } else {
+            failed++;
+          }
+        } catch (error: any) {
+          console.error(`Failed to generate phash for ${record.filename}:`, error.message);
+          failed++;
+        }
+
+        // Emit progress every 10 files
+        if (processed % 10 === 0 || processed === records.length) {
+          this.io.emit('phash_generation', {
+            status: 'processing',
+            total: records.length,
+            processed: processed,
+            generated: generated,
+            skipped: skipped,
+            failed: failed
+          });
+        }
+      }
+
+      // Emit completion
+      this.io.emit('phash_generation', {
+        status: 'completed',
+        total: records.length,
+        processed: processed,
+        generated: generated,
+        skipped: skipped,
+        failed: failed
+      });
+
+      console.log(`✓ Generated ${generated} perceptual hashes (skipped: ${skipped}, failed: ${failed})`);
+    } catch (error) {
+      console.error('Error during phash indexing:', error);
+      this.io.emit('phash_generation', {
         status: 'error',
         error: String(error)
       });
@@ -240,11 +331,18 @@ export class WebRunner extends EventEmitter implements Runner {
     // Index and generate missing thumbnails in background
     // Wait for socket connections (important for desktop/electron mode)
     const downloadsDir = path.join(DATA_DIR, 'downloads');
-    if (await FileUtils.exists(downloadsDir)) {
+    if (await FileUtils.exists(downloadsDir) && !config.testingMode) {
         // Delay to allow browser/electron window to connect to socket.io
         setTimeout(() => {
             this.indexMissingThumbnails(thumbnailService, downloadsDir).catch(err => {
                 console.error('Background thumbnail indexing failed:', err);
+            });
+
+            // Also index and generate missing phashes in background
+            const phashService = container.resolve(PhashService);
+            const fsService = container.resolve(FileSystemService);
+            this.indexMissingPhashes(phashService, fsService, downloadsDir).catch(err => {
+                console.error('Background phash indexing failed:', err);
             });
         }, 2000); // 2 second delay for desktop runner
     }
@@ -274,6 +372,7 @@ export class WebRunner extends EventEmitter implements Runner {
     const publicDir = path.join(__dirname, '../../public');
     this.app.use(express.static(publicDir));
 
+    // Define API routes first
     const downloadsDir = path.join(DATA_DIR, 'downloads');
     if (!(await FileUtils.exists(downloadsDir))) {
         await fs.mkdir(downloadsDir, { recursive: true });
@@ -286,10 +385,6 @@ export class WebRunner extends EventEmitter implements Runner {
     }
     this.app.use('/thumbnails', express.static(thumbnailsDir));
 
-    this.app.get('/', async (req, res) => {
-      res.render('index', { version: require('../../package.json').version });
-    });
-
     this.app.get('/api/history', async (req, res) => {
         const history = await this.dbService.getSubredditHistory(50);
         res.json(history);
@@ -299,6 +394,21 @@ export class WebRunner extends EventEmitter implements Runner {
         res.json({ path: path.join(DATA_DIR, 'downloads') });
     });
 
+    this.app.get('/api/stats', async (req, res) => {
+        try {
+            const fsService = container.resolve(FileSystemService);
+            const downloadsDir = path.join(DATA_DIR, 'downloads');
+            
+            const count = await this.dbService.getDownloadCount();
+            const totalSize = await fsService.getDirectorySize(downloadsDir);
+            
+            res.json({ count, totalSize });
+        } catch (e) {
+            console.error('Failed to get stats:', e);
+            res.status(500).json({ error: String(e) });
+        }
+    });
+
     this.app.get('/api/browse', async (req, res) => {
         const relPath = (req.query.path as string) || '';
 
@@ -306,22 +416,39 @@ export class WebRunner extends EventEmitter implements Runner {
         const normalizedRelPath = path.normalize(relPath).replace(/^(\.\.[\/\\])+/, '');
         const fullPath = path.resolve(downloadsDir, normalizedRelPath);
         const thumbnailsDir = path.join(DATA_DIR, 'thumbnails');
+        
+        console.log(`[DEBUG] Browse Request: Rel='${relPath}' Full='${fullPath}'`);
+        console.log(`[DEBUG] DATA_DIR='${DATA_DIR}' downloadsDir='${downloadsDir}'`);
 
         // Ensure the resolved path is still within the downloads directory
         if (!fullPath.startsWith(path.resolve(downloadsDir))) {
             return res.status(403).send('Invalid path');
         }
 
-        if (!(await FileUtils.exists(fullPath))) return res.json([]);
+        if (!(await FileUtils.exists(fullPath))) {
+            console.log(`[DEBUG] Path does not exist: ${fullPath}`);
+            return res.json([]);
+        }
 
         try {
             const items = await fs.readdir(fullPath, { withFileTypes: true });
+            console.log(`[DEBUG] Found ${items.length} items in ${fullPath}`);
+
+            // Get all relative paths for files to look up IDs in batch
+            const filePaths = items
+                .filter(item => !item.isDirectory())
+                .map(item => path.join(normalizedRelPath, item.name).replace(/\\/g, '/'));
+            
+            const dbRecords = await this.dbService.getDownloadRecordsByPaths(filePaths);
+            const pathToRecordMap = new Map(dbRecords.map(r => [r.path, r]));
 
             const result = await Promise.all(items.map(async item => {
                 const itemPath = path.join(fullPath, item.name);
+                const itemRelativePath = path.join(normalizedRelPath, item.name).replace(/\\/g, '/');
 
                 let size = 0;
                 let fileCount = 0;
+                let id = 0; // Default for directories or unindexed files
 
                 if (item.isDirectory()) {
                     try {
@@ -340,10 +467,15 @@ export class WebRunner extends EventEmitter implements Runner {
                 } else {
                     const stats = await fs.stat(itemPath);
                     size = stats.size;
+                    
+                    // Assign database ID if available
+                    const record = pathToRecordMap.get(itemRelativePath);
+                    if (record) {
+                        id = record.id;
+                    }
                 }
 
                 // Check if thumbnail exists for this file
-                const itemRelativePath = path.join(normalizedRelPath, item.name).replace(/\\/g, '/');
                 const ext = path.extname(item.name).toLowerCase();
                 let thumbnailPath = null;
 
@@ -356,7 +488,8 @@ export class WebRunner extends EventEmitter implements Runner {
                 }
 
                 return {
-                    name: item.name,
+                    id: id,
+                    filename: item.name,
                     isDirectory: item.isDirectory(),
                     path: itemRelativePath,
                     size: size,
@@ -366,7 +499,7 @@ export class WebRunner extends EventEmitter implements Runner {
             }));
 
             result.sort((a, b) => {
-                if (a.isDirectory === b.isDirectory) return a.name.localeCompare(b.name);
+                if (a.isDirectory === b.isDirectory) return a.filename.localeCompare(b.filename);
                 return a.isDirectory ? -1 : 1;
             });
 
@@ -440,6 +573,199 @@ export class WebRunner extends EventEmitter implements Runner {
       this.io.emit('log', { message: 'Stopping...' });
       res.send('Stopping');
     });
+
+    // Duplicate detection endpoints
+    this.app.get('/api/duplicates', async (req, res) => {
+      // Abort any existing scan
+      if (this.duplicateScanController) {
+        this.duplicateScanController.abort();
+      }
+      this.duplicateScanController = new AbortController();
+      const signal = this.duplicateScanController.signal;
+
+      try {
+        const threshold = parseInt(req.query.threshold as string) || 5;
+        const phashService = container.resolve(PhashService);
+        const thumbnailService = container.resolve(ThumbnailService); // Resolve thumbnail service
+        
+        // Notify start
+        this.io.emit('duplicate_scan_progress', { status: 'started' });
+
+        const result = await phashService.findDuplicates(
+          threshold,
+          signal,
+          (processed, total) => {
+            // Emit progress
+            this.io.emit('duplicate_scan_progress', {
+              status: 'processing',
+              processed,
+              total
+            });
+          }
+        );
+
+        // Enrich results with thumbnail paths
+        // We do this after finding duplicates to avoid slowing down the scan loop
+        // It's fast enough for 500 groups usually
+        for (const group of result.groups) {
+          for (const file of group.files) {
+            // DownloadRecord doesn't have thumbnail property typed, but we can add it for the JSON response
+            const thumb = thumbnailService.getThumbnailPath(file.path);
+            if (thumb) {
+              (file as any).thumbnail = thumb;
+            }
+          }
+        }
+
+        this.io.emit('duplicate_scan_progress', { status: 'completed' });
+        res.json(result);
+      } catch (error: any) {
+        if (error.message === 'Duplicate scan cancelled' || signal.aborted) {
+          console.log('Duplicate scan cancelled');
+          res.status(499).json({ error: 'Cancelled' }); // 499 Client Closed Request
+        } else {
+          console.error('Error finding duplicates:', error);
+          this.io.emit('duplicate_scan_progress', { status: 'error', error: error.message });
+          res.status(500).json({ error: error.message });
+        }
+      } finally {
+        this.duplicateScanController = null;
+      }
+    });
+
+    this.app.post('/api/duplicates/cancel', (req, res) => {
+      if (this.duplicateScanController) {
+        this.duplicateScanController.abort();
+        this.duplicateScanController = null;
+        this.io.emit('duplicate_scan_progress', { status: 'cancelled' });
+        res.json({ success: true, message: 'Scan cancelled' });
+      } else {
+        res.json({ success: false, message: 'No scan in progress' });
+      }
+    });
+
+    this.app.post('/api/generate-phash', async (req, res) => {
+      try {
+        const phashService = container.resolve(PhashService);
+        const fsService = container.resolve(FileSystemService);
+
+        // Get records without phash
+        const records = await this.dbService.getDownloadsWithoutPhash();
+
+        if (records.length === 0) {
+          return res.json({
+            status: 'completed',
+            total: 0,
+            processed: 0,
+            message: 'All files already have perceptual hashes'
+          });
+        }
+
+        res.json({
+          status: 'started',
+          total: records.length,
+          taskId: `phash_gen_${Date.now()}`
+        });
+
+        // Process in background
+        setImmediate(async () => {
+          let processed = 0;
+          let generated = 0;
+          let skipped = 0;
+
+          this.io.emit('phash_generation', {
+            status: 'started',
+            total: records.length,
+            processed: 0
+          });
+
+          for (const record of records) {
+            const fullPath = path.join(downloadsDir, record.path);
+            processed++;
+
+            // Check if file exists
+            if (!fsService.fileExists(fullPath)) {
+              skipped++;
+              continue;
+            }
+
+            // Generate phash
+            try {
+              const phash = await phashService.generatePhash(fullPath);
+              if (phash) {
+                const phashStr = Array.isArray(phash) ? JSON.stringify(phash) : phash;
+                await this.dbService.updatePhash(record.id, phashStr);
+                generated++;
+              }
+            } catch (error: any) {
+              console.error(`Failed to generate phash for ${record.filename}:`, error);
+            }
+
+            // Emit progress every 10 files
+            if (processed % 10 === 0 || processed === records.length) {
+              this.io.emit('phash_generation', {
+                status: 'processing',
+                total: records.length,
+                processed: processed,
+                generated: generated,
+                skipped: skipped
+              });
+            }
+          }
+
+          this.io.emit('phash_generation', {
+            status: 'completed',
+            total: records.length,
+            processed: processed,
+            generated: generated,
+            skipped: skipped
+          });
+        });
+      } catch (error: any) {
+        console.error('Error starting phash generation:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    this.app.delete('/api/delete-duplicate/:id', async (req, res) => {
+      try {
+        const id = parseInt(req.params.id);
+        const record = await this.dbService.getDownloadRecord('');
+
+        // Get record to find file path
+        const records = await this.dbService.getAllDownloadsWithPhash();
+        const targetRecord = records.find(r => r.id === id);
+
+        if (!targetRecord) {
+          return res.status(404).json({ error: 'Record not found' });
+        }
+
+        // Delete file from disk
+        const fullPath = path.join(downloadsDir, targetRecord.path);
+        const fsService = container.resolve(FileSystemService);
+
+        if (fsService.fileExists(fullPath)) {
+          await fs.unlink(fullPath);
+        }
+
+        // Delete thumbnail
+        const thumbnailService = container.resolve(ThumbnailService);
+        await thumbnailService.deleteThumbnail(targetRecord.path);
+
+        // Delete from database
+        await this.dbService.deleteDownload(id);
+
+        res.json({ success: true, message: 'File deleted successfully' });
+      } catch (error: any) {
+        console.error('Error deleting duplicate:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    // Catch-all route (must be last)
+    this.app.get(/.*/, (req, res) => {
+      res.sendFile(path.join(publicDir, 'index.html'));
+    });
   }
 
   private setupSockets() {
@@ -506,21 +832,26 @@ export class WebRunner extends EventEmitter implements Runner {
 
         const orchestrator = new DownloadOrchestrator(runConfig, state, apiService, fsService, scopedDownloadManager);
 
-        let lastRefresh = 0;
         await orchestrator.downloadBatch({
             target: subreddit,
             logger: {log: socketLogger},
             options: {delayBetweenPosts: 200, signal},
-            onProgress: (downloaded: number, total: number) => {
-                // Emit progress event
-                this.io.emit('progress', { downloaded, total });
-
-                // throttle file refresh (max once every 2 seconds)
-                const now = Date.now();
-                if (now - lastRefresh > 2000) {
-                    this.io.emit('refresh_files');
-                    lastRefresh = now;
-                }
+            onProgress: (downloaded: number, total: number, folder: string) => {
+                // Emit progress event with current folder
+                this.io.emit('progress', { downloaded, total, folder });
+            },
+            onDownloadedItem: (item: FileItem) => {
+                // Push the newly added item to the frontend
+                this.io.emit('new_item', item);
+            },
+            onNewFolder: (folderName: string, folderPath: string) => {
+                // Push the newly created folder to the frontend
+                this.io.emit('new_folder', {
+                    filename: folderName,
+                    path: folderPath,
+                    isDirectory: true,
+                    fileCount: 0
+                });
             }
         });
 
@@ -537,7 +868,6 @@ export class WebRunner extends EventEmitter implements Runner {
         this.abortController = null;
         this.io.emit('status', 'idle');
         this.io.emit('log', { message: 'Done.' });
-        this.io.emit('refresh_files');
     }
   }
 }
