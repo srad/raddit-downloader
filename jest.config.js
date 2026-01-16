@@ -21,7 +21,8 @@ module.exports = {
 				'**/__tests__/thumbnailService.test.ts',
 				'**/__tests__/webRunner.test.ts',
 				'**/__tests__/mediaDownloader.test.ts',
-				'**/__tests__/downloadManager.test.ts'
+				'**/__tests__/downloadManager.test.ts',
+				'**/__tests__/stats.test.ts'
 			],
 			testEnvironment: 'node',
 		},

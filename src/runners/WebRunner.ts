@@ -394,6 +394,21 @@ export class WebRunner extends EventEmitter implements Runner {
         res.json({ path: path.join(DATA_DIR, 'downloads') });
     });
 
+    this.app.get('/api/stats', async (req, res) => {
+        try {
+            const fsService = container.resolve(FileSystemService);
+            const downloadsDir = path.join(DATA_DIR, 'downloads');
+            
+            const count = await this.dbService.getDownloadCount();
+            const totalSize = await fsService.getDirectorySize(downloadsDir);
+            
+            res.json({ count, totalSize });
+        } catch (e) {
+            console.error('Failed to get stats:', e);
+            res.status(500).json({ error: String(e) });
+        }
+    });
+
     this.app.get('/api/browse', async (req, res) => {
         const relPath = (req.query.path as string) || '';
 

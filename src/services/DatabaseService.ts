@@ -307,6 +307,22 @@ export class DatabaseService {
     });
   }
 
+  /**
+   * Get the total number of downloads in the database
+   */
+  public async getDownloadCount(): Promise<number> {
+    return new Promise((resolve, reject) => {
+      this.db.get('SELECT COUNT(*) as count FROM downloads', [], (err, row: { count: number }) => {
+        if (err) {
+          this.loggerService.log(`Database error (count): ${err.message}`, true);
+          reject(err);
+        } else {
+          resolve(row.count || 0);
+        }
+      });
+    });
+  }
+
   public close(): void {
     this.db.close();
   }

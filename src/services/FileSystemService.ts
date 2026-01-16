@@ -35,4 +35,33 @@ export class FileSystemService {
     public readFileSync(filePath: string, encoding: BufferEncoding = 'utf8'): string {
         return fs.readFileSync(filePath, encoding);
     }
+
+    /**
+     * Calculates the total size of a directory including subdirectories.
+     * Uses parallel processing for better performance.
+     */
+    public async getDirectorySize(dirPath: string): Promise<number> {
+        if (!fs.existsSync(dirPath)) return 0;
+        
+        const stats = await fs.promises.stat(dirPath);
+        if (stats.isFile()) return stats.size;
+
+        const files = await fs.promises.readdir(dirPath);
+        const sizes = await Promise.all(
+            files.map(async (file) => {
+                const childPath = path.join(dirPath, file);
+                try {
+                    const childStats = await fs.promises.stat(childPath);
+                    if (childStats.isDirectory()) {
+                        return this.getDirectorySize(childPath);
+                    }
+                    return childStats.size;
+                } catch (e) {
+                    return 0; // Handle permission errors or deleted files
+                }
+            })
+        );
+
+        return sizes.reduce((acc, size) => acc + size, 0);
+    }
 }
