@@ -843,6 +843,15 @@ export class WebRunner extends EventEmitter implements Runner {
             onDownloadedItem: (item: FileItem) => {
                 // Push the newly added item to the frontend
                 this.io.emit('new_item', item);
+            },
+            onNewFolder: (folderName: string, folderPath: string) => {
+                // Push the newly created folder to the frontend
+                this.io.emit('new_folder', {
+                    filename: folderName,
+                    path: folderPath,
+                    isDirectory: true,
+                    fileCount: 0
+                });
             }
         });
 

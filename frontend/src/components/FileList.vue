@@ -53,6 +53,22 @@ if (socket) {
       folder.fileCount++;
     }
   });
+
+  socket.on('new_folder', (folder: FolderItem) => {
+    // folder.path is "r_pics"
+    // props.path is "" (for root)
+    const lastSlashIndex = folder.path.lastIndexOf('/');
+    const parentDir = lastSlashIndex !== -1 ? folder.path.substring(0, lastSlashIndex) : '';
+    
+    if (parentDir === props.path) {
+      const exists = folders.value.some(f => f.path === folder.path);
+      if (!exists) {
+        folders.value.push(folder);
+        // Sort folders alphabetically
+        folders.value.sort((a, b) => a.filename.localeCompare(b.filename));
+      }
+    }
+  });
 }
 
 const fetchFolders = async () => {

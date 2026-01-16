@@ -6,7 +6,7 @@
   "main": "dist/electron/main.js",
   "scripts": {
     "start": "electron-forge start",
-    "build": "tsc",
+    "build": "cd frontend && npm run build && cd .. && tsc",
     "test": "jest",
     "test:unit": "jest --selectProjects unit",
     "test:e2e": "jest --selectProjects e2e",

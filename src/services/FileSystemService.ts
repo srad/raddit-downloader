@@ -4,10 +4,12 @@ import {singleton} from 'tsyringe';
 
 @singleton()
 export class FileSystemService {
-    public ensureDirectoryExists(dirPath: string): void {
+    public ensureDirectoryExists(dirPath: string): boolean {
         if (!fs.existsSync(dirPath)) {
             fs.mkdirSync(dirPath, {recursive: true});
+            return true;
         }
+        return false;
     }
 
     public fileExists(filePath: string): boolean {

@@ -33,8 +33,15 @@
     </div>
 
     <div v-if="isRunning" class="progress-bar-container mb-3">
-      <div class="progress-bar-fill" :style="{ width: progressPercentage + '%' }"></div>
-      <span class="progress-text">{{ progress?.downloaded || 0 }} / {{ progress?.total || 0 }} posts ({{ progressPercentage }}%)</span>
+      <div 
+        class="progress-bar-fill" 
+        :class="{ 'indeterminate': isInfinite }"
+        :style="{ width: (isInfinite ? '100%' : progressPercentage + '%') }"
+      ></div>
+      <span class="progress-text">
+        {{ progress?.downloaded || 0 }} / {{ displayTotal }} posts 
+        <template v-if="!isInfinite">({{ progressPercentage }}%)</template>
+      </span>
     </div>
 
     <div class="options-toggle d-flex align-items-center gap-2 mb-2 cursor-pointer" :class="{ open: optionsOpen }" @click="optionsOpen = !optionsOpen">
@@ -110,9 +117,12 @@ const limit = ref<number>(0);
 const optionsOpen = ref(false);
 
 const progressPercentage = computed(() => {
-  if (!props.progress || props.progress.total <= 0) return 0;
+  if (!props.progress || props.progress.total <= 0 || isInfinite.value) return 0;
   return Math.round((props.progress.downloaded / props.progress.total) * 100);
 });
+
+const isInfinite = computed(() => (props.progress?.total || 0) > 1000000000);
+const displayTotal = computed(() => isInfinite.value ? 'All' : (props.progress?.total || 0));
 
 const startDownload = () => {
   emit('start', { subreddit: subreddit.value, sorting: sorting.value, time: time.value, limit: limit.value });
@@ -157,6 +167,18 @@ const stopDownload = () => emit('stop');
     height: 100%;
     background: #ff4500;
     transition: width 0.3s ease;
+}
+
+.progress-bar-fill.indeterminate {
+    width: 100%;
+    background: linear-gradient(90deg, #ff4500 0%, #ff8c00 50%, #ff4500 100%);
+    background-size: 200% 100%;
+    animation: move-indeterminate 2s linear infinite;
+}
+
+@keyframes move-indeterminate {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
 }
 
 .progress-text {

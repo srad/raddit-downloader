@@ -1,4 +1,5 @@
 import {inject, injectable} from 'tsyringe';
+import * as path from 'path';
 import {Config, RedditPost, DownloadResult, FileItem} from '../types';
 import {StateService} from './StateService';
 import {RedditApiService} from './RedditApiService';
@@ -35,7 +36,8 @@ export class DownloadOrchestrator {
     public async downloadPost(
         post: RedditPost,
         logger: Logger,
-        options: DownloadOptions = {}
+        options: DownloadOptions = {},
+        onNewFolder: (folderName: string, folderPath: string) => void = () => {}
     ): Promise<DownloadResult> {
         const currentTarget = this.state.getCurrentSubreddit();
         const isUser = isUserProfile(currentTarget);
@@ -48,7 +50,12 @@ export class DownloadOrchestrator {
         });
         const filenameBase = getFileName(post, this.config);
 
-        this.fsService.ensureDirectoryExists(targetDir);
+        if (this.fsService.ensureDirectoryExists(targetDir)) {
+            // New folder created
+            const folderName = path.basename(targetDir);
+            const relativePath = folderName; // Folder is at root of downloads
+            onNewFolder(folderName, relativePath);
+        }
         this.state.downloadDirectory = targetDir;
 
         // Pass the actual source (user profile or subreddit) to track where we downloaded from
@@ -65,14 +72,16 @@ export class DownloadOrchestrator {
                                    options = {},
                                    lastPostId = '',
                                    onProgress = () => {},
-                                   onDownloadedItem = () => {}
+                                   onDownloadedItem = () => {},
+                                   onNewFolder = () => {}
                                }: {
         target: string,
         logger: Logger,
         options: DownloadOptions,
         lastPostId?: string,
         onProgress?: (downloaded: number, total: number) => void,
-        onDownloadedItem?: (item: FileItem) => void
+        onDownloadedItem?: (item: FileItem) => void,
+        onNewFolder?: (folderName: string, folderPath: string) => void
     }): Promise<void> {
         if (options.signal?.aborted) {
             throw new Error('Aborted');
@@ -132,7 +141,7 @@ export class DownloadOrchestrator {
                 }
 
                 try {
-                    const result = await this.downloadPost(post, logger, options);
+                    const result = await this.downloadPost(post, logger, options, onNewFolder);
                     if (result.downloaded) {
                         this.state.downloadedPosts.media++;
                         if (result.fileItem) {
@@ -146,7 +155,8 @@ export class DownloadOrchestrator {
                     logger.log(`Failed to download post: ${message}`, true);
                     this.state.downloadedPosts.failed++;
                 }
-                onProgress(i, posts.length);
+                const [remaining, processed] = this.state.getPostsRemaining();
+                onProgress(processed, this.state.numberOfPosts);
             }
 
             // Continue with next batch if needed
@@ -160,7 +170,8 @@ export class DownloadOrchestrator {
                     options,
                     lastPostId: newLastPostId,
                     onProgress: onProgress,
-                    onDownloadedItem: onDownloadedItem
+                    onDownloadedItem: onDownloadedItem,
+                    onNewFolder: onNewFolder
                 });
             }
         } catch (err: unknown) {

@@ -14,17 +14,28 @@ const props = withDefaults(
 );
 
 // 2. Computed Logic
+const isInfinite = computed(() => props.total > 1000000000); // Check for ALL_POSTS (Number.MAX_SAFE_INTEGER)
+
 const percentage = computed(() => {
-  if (props.total <= 0) return 0;
+  if (props.total <= 0 || isInfinite.value) return 0;
   return Math.round((props.current / props.total) * 100);
 });
+
+const displayTotal = computed(() => isInfinite.value ? 'All' : props.total);
 </script>
 
 <template>
   <div class="progress-wrapper">
-    <progress :value="current" :max="total" class="progress-bar"></progress>
+    <progress 
+      :value="isInfinite ? undefined : current" 
+      :max="isInfinite ? undefined : total" 
+      class="progress-bar"
+    ></progress>
 
-    <small class="progress-text"> {{ current }} / {{ total }} posts ({{ percentage }}%) </small>
+    <small class="progress-text"> 
+      {{ current }} / {{ displayTotal }} posts 
+      <template v-if="!isInfinite">({{ percentage }}%)</template>
+    </small>
   </div>
 </template>
 
