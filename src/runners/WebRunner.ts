@@ -331,7 +331,7 @@ export class WebRunner extends EventEmitter implements Runner {
     // Index and generate missing thumbnails in background
     // Wait for socket connections (important for desktop/electron mode)
     const downloadsDir = path.join(DATA_DIR, 'downloads');
-    if (await FileUtils.exists(downloadsDir)) {
+    if (await FileUtils.exists(downloadsDir) && !config.testingMode) {
         // Delay to allow browser/electron window to connect to socket.io
         setTimeout(() => {
             this.indexMissingThumbnails(thumbnailService, downloadsDir).catch(err => {

@@ -12,7 +12,17 @@ module.exports = {
 		{
 			displayName: 'unit',
 			preset: 'ts-jest',
-			testMatch: ['**/__tests__/utils.test.ts', '**/__tests__/services.test.ts', '**/__tests__/orchestrator.test.ts', '**/__tests__/postUtils.test.ts', '**/__tests__/galleryDownloader.test.ts', '**/__tests__/thumbnailService.test.ts', '**/__tests__/webRunner.test.ts', '**/__tests__/mediaDownloader.test.ts'],
+			testMatch: [
+				'**/__tests__/utils.test.ts',
+				'**/__tests__/services.test.ts',
+				'**/__tests__/orchestrator.test.ts',
+				'**/__tests__/postUtils.test.ts',
+				'**/__tests__/galleryDownloader.test.ts',
+				'**/__tests__/thumbnailService.test.ts',
+				'**/__tests__/webRunner.test.ts',
+				'**/__tests__/mediaDownloader.test.ts',
+				'**/__tests__/downloadManager.test.ts'
+			],
 			testEnvironment: 'node',
 		},
 		{

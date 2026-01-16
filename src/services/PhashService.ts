@@ -8,7 +8,7 @@ import ffmpegPath from 'ffmpeg-static';
 const ffprobeStatic = require('ffprobe-static');
 import { LoggerService } from './LoggerService';
 import { FileSystemService } from './FileSystemService';
-import { DatabaseService } from './DatabaseService';
+import { DatabaseService, DownloadRecord } from './DatabaseService';
 import { DuplicateGroup, DuplicateDetectionResult } from '../types/phash';
 import { injectable, inject } from 'tsyringe';
 
@@ -314,6 +314,36 @@ export class PhashService {
       match: false,
       distance: 999
     };
+  }
+
+  /**
+   * Find a single duplicate in the database for a given phash
+   * @param phash Phash to check
+   * @param threshold Hamming distance threshold
+   * @returns The matching record if found, null otherwise
+   */
+  async findDuplicate(
+    phash: string | string[],
+    threshold: number = 5
+  ): Promise<DownloadRecord | null> {
+    const records = await this.dbService.getAllDownloadsWithPhash();
+    
+    for (const record of records) {
+      try {
+        const existingPhash = record.phash!.startsWith('[')
+          ? JSON.parse(record.phash!) as string[]
+          : record.phash!;
+        
+        const result = this.comparePhashes(phash, existingPhash, threshold);
+        if (result.match) {
+          return record;
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+    
+    return null;
   }
 
   /**

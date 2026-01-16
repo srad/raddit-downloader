@@ -36,7 +36,7 @@ export class DownloadOrchestrator {
         post: RedditPost,
         logger: Logger,
         options: DownloadOptions = {}
-    ): Promise<void> {
+    ): Promise<boolean> {
         const currentTarget = this.state.getCurrentSubreddit();
         const isUser = isUserProfile(currentTarget);
         const isOver18 = post.over_18 || false;
@@ -53,7 +53,7 @@ export class DownloadOrchestrator {
 
         // Pass the actual source (user profile or subreddit) to track where we downloaded from
         const source = isUser ? currentTarget : post.subreddit;
-        await this.downloadManager.download(post, targetDir, filenameBase, source);
+        return await this.downloadManager.download(post, targetDir, filenameBase, source);
     }
 
     /**
@@ -131,8 +131,12 @@ export class DownloadOrchestrator {
                 }
 
                 try {
-                    await this.downloadPost(post, logger, options);
-                    this.state.downloadedPosts.media++;
+                    const downloaded = await this.downloadPost(post, logger, options);
+                    if (downloaded) {
+                        this.state.downloadedPosts.media++;
+                    } else {
+                        this.state.downloadedPosts.skipped_due_to_duplicate++;
+                    }
                 } catch (e: unknown) {
                     const message = e instanceof Error ? e.message : String(e);
                     logger.log(`Failed to download post: ${message}`, true);

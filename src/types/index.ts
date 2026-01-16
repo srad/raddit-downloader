@@ -128,6 +128,8 @@ export interface Config {
   use_history_database?: boolean;
   group_gallery_images?: boolean;
   rate_limit_delay_ms?: number; // Custom delay between API requests (default: 2000ms)
+  prevent_duplicates?: boolean; // Active duplicate prevention during download
+  duplicate_threshold?: number; // Hamming distance threshold for duplicate detection (default: 5)
 }
 
 export interface TestingModeOptions {

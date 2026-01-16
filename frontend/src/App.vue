@@ -5,6 +5,7 @@ import { RouterView, useRouter } from 'vue-router';
 import { getApiBase } from './utils/config';
 import type { SearchPayload } from './components/SearchBar.vue';
 import SearchBar from './components/SearchBar.vue';
+import LogPanel from './components/LogPanel.vue';
 import { useSocket } from './composables/useSocket.ts';
 
 declare global {
@@ -102,33 +103,17 @@ onMounted(async () => {
       <main class="main-content">
         <RouterView />
 
-        <div class="logs-panel" :class="{ visible: logsVisible }">
-          <div v-for="(log, i) in logs" :key="i" class="log-entry" :class="{ 'log-error': log.isError }">
-            <span class="opacity-50 me-2">[{{ log.time }}]</span> {{ log.message }}
-          </div>
-        </div>
+        <LogPanel :logs="logs" :visible="logsVisible" :limit="100" />
       </main>
     </div>
   </div>
 </template>
 
 <style scoped>
-.logs-panel {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 200px;
-  background: #000;
-  border-top: 1px solid #2a2a2a;
-  overflow-y: auto;
-  padding: 15px;
-  font-family: monospace;
-  font-size: 0.85rem;
-  display: none;
-  z-index: 100;
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
 }
-.logs-panel.visible { display: block; }
-.log-entry { margin-bottom: 4px; border-bottom: 1px solid #111; padding-bottom: 2px; color: #4caf50; }
-.log-entry.log-error { color: #ff5555; }
 </style>

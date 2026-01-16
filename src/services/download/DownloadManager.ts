@@ -27,7 +27,7 @@ export class DownloadManager {
     this.downloaders.push(downloader);
   }
 
-  public async download(post: RedditPost, targetDir: string, filenameBase: string, source?: string): Promise<void> {
+  public async download(post: RedditPost, targetDir: string, filenameBase: string, source?: string): Promise<boolean> {
     // Check History DB - but only skip if file actually exists on disk
     if (
       this.dbService &&
@@ -42,7 +42,7 @@ export class DownloadManager {
 
         if (this.fsService.fileExists(fullPath)) {
           this.loggerService.log(`Skipping duplicate (file exists): ${post.title}`, true);
-          return;
+          return false;
         } else {
           this.loggerService.log(`Re-downloading (file missing from disk): ${post.title}`, true);
           // File is missing, so we'll download it again
@@ -76,6 +76,20 @@ export class DownloadManager {
             // Serialize phash (single string for images, JSON array for videos)
             phashStr = Array.isArray(phash) ? JSON.stringify(phash) : phash;
             this.loggerService.log(`  Generated phash: ${Array.isArray(phash) ? `[${phash.length} frames]` : phashStr.substring(0, 12)}...`, true);
+
+            // Active duplicate prevention
+            if (this.config.prevent_duplicates !== false) {
+              const threshold = this.config.duplicate_threshold ?? 5;
+              const duplicate = await this.phashService.findDuplicate(phash, threshold);
+              
+              if (duplicate) {
+                this.loggerService.log(`  Duplicate detected (content match): same as ${duplicate.filename} from ${duplicate.source}`, true);
+                this.loggerService.log(`  Skipping and deleting duplicate...`, true);
+                
+                await this.fsService.deleteFile(fullFilePath);
+                return false; 
+              }
+            }
           }
         } catch (error: any) {
           this.loggerService.log(`  Warning: phash generation failed: ${error.message}`, true);
@@ -97,9 +111,10 @@ export class DownloadManager {
         const filePath = path.join(targetDir, filename);
         await this.thumbnailService.generateThumbnail(filePath, relativePath);
 
-        return;
+        return true;
       }
     }
     this.loggerService.log(`❌ No downloader found for post: ${post.title}`, true);
+    return false;
   }
 }
