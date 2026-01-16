@@ -24,7 +24,7 @@ import { ThumbnailService } from '../services/ThumbnailService';
 import { PhashService } from '../services/PhashService';
 import { CONFIG_TOKEN, DB_PATH_TOKEN } from '../config/tokens';
 import { ALL_POSTS, DATA_DIR } from '../config/constants';
-import { Config } from '../types';
+import { Config, FileItem } from '../types';
 import { FileUtils } from "../utils/fileUtils"
 
 @injectable()
@@ -434,11 +434,21 @@ export class WebRunner extends EventEmitter implements Runner {
             const items = await fs.readdir(fullPath, { withFileTypes: true });
             console.log(`[DEBUG] Found ${items.length} items in ${fullPath}`);
 
+            // Get all relative paths for files to look up IDs in batch
+            const filePaths = items
+                .filter(item => !item.isDirectory())
+                .map(item => path.join(normalizedRelPath, item.name).replace(/\\/g, '/'));
+            
+            const dbRecords = await this.dbService.getDownloadRecordsByPaths(filePaths);
+            const pathToRecordMap = new Map(dbRecords.map(r => [r.path, r]));
+
             const result = await Promise.all(items.map(async item => {
                 const itemPath = path.join(fullPath, item.name);
+                const itemRelativePath = path.join(normalizedRelPath, item.name).replace(/\\/g, '/');
 
                 let size = 0;
                 let fileCount = 0;
+                let id = 0; // Default for directories or unindexed files
 
                 if (item.isDirectory()) {
                     try {
@@ -457,10 +467,15 @@ export class WebRunner extends EventEmitter implements Runner {
                 } else {
                     const stats = await fs.stat(itemPath);
                     size = stats.size;
+                    
+                    // Assign database ID if available
+                    const record = pathToRecordMap.get(itemRelativePath);
+                    if (record) {
+                        id = record.id;
+                    }
                 }
 
                 // Check if thumbnail exists for this file
-                const itemRelativePath = path.join(normalizedRelPath, item.name).replace(/\\/g, '/');
                 const ext = path.extname(item.name).toLowerCase();
                 let thumbnailPath = null;
 
@@ -473,8 +488,8 @@ export class WebRunner extends EventEmitter implements Runner {
                 }
 
                 return {
-                    name: item.name,
-                    filename: item.name, // Alias for frontend compatibility
+                    id: id,
+                    filename: item.name, // Use item.name from fs as filename
                     isDirectory: item.isDirectory(),
                     path: itemRelativePath,
                     size: size,
@@ -484,7 +499,7 @@ export class WebRunner extends EventEmitter implements Runner {
             }));
 
             result.sort((a, b) => {
-                if (a.isDirectory === b.isDirectory) return a.name.localeCompare(b.name);
+                if (a.isDirectory === b.isDirectory) return a.filename.localeCompare(b.filename);
                 return a.isDirectory ? -1 : 1;
             });
 
@@ -817,7 +832,6 @@ export class WebRunner extends EventEmitter implements Runner {
 
         const orchestrator = new DownloadOrchestrator(runConfig, state, apiService, fsService, scopedDownloadManager);
 
-        let lastRefresh = 0;
         await orchestrator.downloadBatch({
             target: subreddit,
             logger: {log: socketLogger},
@@ -825,13 +839,10 @@ export class WebRunner extends EventEmitter implements Runner {
             onProgress: (downloaded: number, total: number) => {
                 // Emit progress event
                 this.io.emit('progress', { downloaded, total });
-
-                // throttle file refresh (max once every 2 seconds)
-                const now = Date.now();
-                if (now - lastRefresh > 2000) {
-                    this.io.emit('refresh_files');
-                    lastRefresh = now;
-                }
+            },
+            onDownloadedItem: (item: FileItem) => {
+                // Push the newly added item to the frontend
+                this.io.emit('new_item', item);
             }
         });
 
@@ -848,7 +859,6 @@ export class WebRunner extends EventEmitter implements Runner {
         this.abortController = null;
         this.io.emit('status', 'idle');
         this.io.emit('log', { message: 'Done.' });
-        this.io.emit('refresh_files');
     }
   }
 }

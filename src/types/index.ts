@@ -152,6 +152,21 @@ export interface DownloadStats {
   skipped_due_to_fileType: number;
 }
 
+export interface FileItem {
+  id: number;
+  filename: string;
+  isDirectory: boolean;
+  path: string;
+  size: number;
+  fileCount?: number;
+  thumbnail: string | null;
+}
+
+export interface DownloadResult {
+  downloaded: boolean;
+  fileItem?: FileItem;
+}
+
 export interface State {
   subredditList: string[];
   numberOfPosts: number;

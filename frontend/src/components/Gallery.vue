@@ -65,7 +65,7 @@ import { getApiBase } from '../utils/config';
 import type { FileItem } from '../types';
 
 const route = useRoute();
-const { refreshSignal } = useSocket();
+const { refreshSignal, socket } = useSocket();
 const apiBase = getApiBase();
 
 const allItems = ref<FileItem[]>([]);
@@ -89,6 +89,26 @@ const currentPath = computed(() => {
   if (!route.params.path) return '';
   return Array.isArray(route.params.path) ? route.params.path.join('/') : route.params.path;
 });
+
+// Listener for incrementally added items
+if (socket) {
+  socket.on('new_item', (item: FileItem) => {
+    // item.path is like "r_pics/image.jpg"
+    // currentPath is like "r_pics"
+    const lastSlashIndex = item.path.lastIndexOf('/');
+    const itemDir = lastSlashIndex !== -1 ? item.path.substring(0, lastSlashIndex) : '';
+    
+    if (itemDir === currentPath.value) {
+      // Add to list if not already there
+      const exists = allItems.value.some(existing => existing.path === item.path);
+      if (!exists) {
+        allItems.value.push(item);
+        // Sort alphabetically to match initial load
+        allItems.value.sort((a, b) => a.filename.localeCompare(b.filename));
+      }
+    }
+  });
+}
 
 const filteredItems = computed(() => {
   return allItems.value.filter(item => {

@@ -8,7 +8,7 @@
          class="folder-item"
          :class="{ active: isActive(folder.path) }" 
          @click="selectFolder(folder.path)">
-        <span class="folder-label text-truncate">{{ folder.name }} ({{ folder.fileCount }})</span>
+        <span class="folder-label text-truncate">{{ folder.filename }} ({{ folder.fileCount }})</span>
         <span class="folder-delete" @click.stop="deleteFolder(folder.path)" title="Delete Folder">&times;</span>
     </div>
   </div>
@@ -21,7 +21,7 @@ import { useSocket } from '../composables/useSocket';
 import { getApiBase } from '../utils/config';
 
 interface FolderItem {
-  name: string;
+  filename: string;
   path: string;
   isDirectory: boolean;
   fileCount: number;
@@ -35,11 +35,25 @@ const props = defineProps<{
 
 const router = useRouter();
 const route = useRoute();
-const { refreshSignal } = useSocket();
+const { refreshSignal, socket } = useSocket();
 const apiBase = getApiBase();
 
 const folders = ref<FolderItem[]>([]);
 const isLoading = ref(false);
+
+// Listen for new items to update folder counts
+if (socket) {
+  socket.on('new_item', (item: any) => {
+    // item.path is "r_pics/image.jpg"
+    const lastSlashIndex = item.path.lastIndexOf('/');
+    const itemDir = lastSlashIndex !== -1 ? item.path.substring(0, lastSlashIndex) : '';
+    
+    const folder = folders.value.find(f => f.path === itemDir);
+    if (folder) {
+      folder.fileCount++;
+    }
+  });
+}
 
 const fetchFolders = async () => {
   isLoading.value = true;

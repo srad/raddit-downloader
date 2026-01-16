@@ -1,10 +1,11 @@
 export interface FileItem {
-  id: string | number;
+  id: number;
   filename: string;
   size?: number;
-  source: string;
-  thumbnail?: string;
+  source?: string;
+  thumbnail?: string | null;
   path: string;
-  url: string;
+  url?: string;
   isDirectory?: boolean;
+  fileCount?: number;
 }

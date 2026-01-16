@@ -1,5 +1,5 @@
 import { Downloader } from './Downloader';
-import { RedditPost, Config } from '../../types';
+import { RedditPost, Config, DownloadResult, FileItem } from '../../types';
 import { LoggerService } from '../LoggerService';
 import { DatabaseService } from '../DatabaseService';
 import { FileSystemService } from '../FileSystemService';
@@ -8,6 +8,7 @@ import { PhashService } from '../PhashService';
 import { singleton, inject } from 'tsyringe';
 import { CONFIG_TOKEN } from '../../config/tokens';
 import * as path from 'path';
+import * as fs from 'fs/promises';
 import { DEBUG } from '../../config/constants';
 
 @singleton()
@@ -27,7 +28,7 @@ export class DownloadManager {
     this.downloaders.push(downloader);
   }
 
-  public async download(post: RedditPost, targetDir: string, filenameBase: string, source?: string): Promise<boolean> {
+  public async download(post: RedditPost, targetDir: string, filenameBase: string, source?: string): Promise<DownloadResult> {
     // Check History DB - but only skip if file actually exists on disk
     if (
       this.dbService &&
@@ -42,7 +43,7 @@ export class DownloadManager {
 
         if (this.fsService.fileExists(fullPath)) {
           this.loggerService.log(`Skipping duplicate (file exists): ${post.title}`, true);
-          return false;
+          return { downloaded: false };
         } else {
           this.loggerService.log(`Re-downloading (file missing from disk): ${post.title}`, true);
           // File is missing, so we'll download it again
@@ -87,7 +88,7 @@ export class DownloadManager {
                 this.loggerService.log(`  Skipping and deleting duplicate...`, true);
                 
                 await this.fsService.deleteFile(fullFilePath);
-                return false; 
+                return { downloaded: false }; 
               }
             }
           }
@@ -96,25 +97,37 @@ export class DownloadManager {
           // Continue without phash
         }
 
+        let insertedId = 0;
         if (this.dbService && this.config.use_history_database !== false) {
            // Use provided source or fall back to post.subreddit
            const downloadSource = source || post.subreddit;
            // Store full relative path: "r_pics/somefile.jpg"
            const relativeDir = path.basename(targetDir);
            const relativePath = `${relativeDir}/${filename}`;
-           await this.dbService.addDownload(post, filename, relativePath, downloadSource, phashStr);
+           insertedId = await this.dbService.addDownload(post, filename, relativePath, downloadSource, phashStr);
         }
 
         // Generate thumbnail for the downloaded file
         const relativeDir = path.basename(targetDir);
         const relativePath = `${relativeDir}/${filename}`;
         const filePath = path.join(targetDir, filename);
-        await this.thumbnailService.generateThumbnail(filePath, relativePath);
+        const thumbnailRelativePath = await this.thumbnailService.generateThumbnail(filePath, relativePath);
 
-        return true;
+        const stats = await fs.stat(filePath);
+
+        const fileItem: FileItem = {
+          id: insertedId,
+          filename: filename,
+          isDirectory: false,
+          path: relativePath,
+          size: stats.size,
+          thumbnail: thumbnailRelativePath
+        };
+
+        return { downloaded: true, fileItem };
       }
     }
     this.loggerService.log(`❌ No downloader found for post: ${post.title}`, true);
-    return false;
+    return { downloaded: false };
   }
 }

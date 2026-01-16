@@ -173,7 +173,27 @@ export class DatabaseService {
     });
   }
 
-  public async addDownload(post: RedditPost, filename: string, filePath: string, source: string, phash?: string | null): Promise<void> {
+  /**
+   * Get multiple download records by their paths
+   */
+  public async getDownloadRecordsByPaths(paths: string[]): Promise<DownloadRecord[]> {
+    if (paths.length === 0) return [];
+    
+    return new Promise((resolve, reject) => {
+      const placeholders = paths.map(() => '?').join(',');
+      const sql = `SELECT * FROM downloads WHERE path IN (${placeholders})`;
+      
+      this.db.all(sql, paths, (err, rows: DownloadRecord[]) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(rows || []);
+        }
+      });
+    });
+  }
+
+  public async addDownload(post: RedditPost, filename: string, filePath: string, source: string, phash?: string | null): Promise<number> {
     const sql = `
       INSERT OR IGNORE INTO downloads (post_id, source, url, filename, path, downloaded_at, phash)
       VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -189,12 +209,11 @@ export class DatabaseService {
     ];
 
     return new Promise((resolve, reject) => {
-      this.db.run(sql, params, (err) => {
+      this.db.run(sql, params, function (err) {
         if (err) {
-          this.loggerService.log(`Database insert error: ${err.message}`, true);
           reject(err);
         } else {
-          resolve();
+          resolve(this.lastID);
         }
       });
     });

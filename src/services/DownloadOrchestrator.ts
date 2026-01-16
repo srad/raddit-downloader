@@ -1,5 +1,5 @@
 import {inject, injectable} from 'tsyringe';
-import {Config, RedditPost} from '../types';
+import {Config, RedditPost, DownloadResult, FileItem} from '../types';
 import {StateService} from './StateService';
 import {RedditApiService} from './RedditApiService';
 import {FileSystemService} from './FileSystemService';
@@ -36,7 +36,7 @@ export class DownloadOrchestrator {
         post: RedditPost,
         logger: Logger,
         options: DownloadOptions = {}
-    ): Promise<boolean> {
+    ): Promise<DownloadResult> {
         const currentTarget = this.state.getCurrentSubreddit();
         const isUser = isUserProfile(currentTarget);
         const isOver18 = post.over_18 || false;
@@ -64,14 +64,15 @@ export class DownloadOrchestrator {
                                    logger,
                                    options = {},
                                    lastPostId = '',
-                                   onProgress = () => {
-                                   }
+                                   onProgress = () => {},
+                                   onDownloadedItem = () => {}
                                }: {
         target: string,
         logger: Logger,
         options: DownloadOptions,
         lastPostId?: string,
-        onProgress?: (downloaded: number, total: number) => void
+        onProgress?: (downloaded: number, total: number) => void,
+        onDownloadedItem?: (item: FileItem) => void
     }): Promise<void> {
         if (options.signal?.aborted) {
             throw new Error('Aborted');
@@ -131,9 +132,12 @@ export class DownloadOrchestrator {
                 }
 
                 try {
-                    const downloaded = await this.downloadPost(post, logger, options);
-                    if (downloaded) {
+                    const result = await this.downloadPost(post, logger, options);
+                    if (result.downloaded) {
                         this.state.downloadedPosts.media++;
+                        if (result.fileItem) {
+                            onDownloadedItem(result.fileItem);
+                        }
                     } else {
                         this.state.downloadedPosts.skipped_due_to_duplicate++;
                     }
@@ -155,7 +159,8 @@ export class DownloadOrchestrator {
                     logger,
                     options,
                     lastPostId: newLastPostId,
-                    onProgress: onProgress
+                    onProgress: onProgress,
+                    onDownloadedItem: onDownloadedItem
                 });
             }
         } catch (err: unknown) {
