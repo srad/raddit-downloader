@@ -32,10 +32,12 @@ async function startServer() {
     // Pass port: 0 to let the OS assign an available port
     await webRunner.run({ openBrowser: false, port: 0 });
     serverStarted = true;
+
+    process.env.BACKEND_PORT = String(webRunner.getPort());
   }
 }
 
-function createWindow() {
+async function createWindow() {
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -47,9 +49,16 @@ function createWindow() {
   });
 
   win.setMenu(null);
-  
-  const port = webRunner?.getPort() || 3000;
-  win.loadURL(`http://localhost:${port}`);
+
+  // Redirect renderer console to main process console
+  win.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    const levels = ['DEBUG', 'INFO', 'WARN', 'ERROR'];
+    const levelStr = levels[level] || 'INFO';
+    console.log(`[Renderer][${levelStr}] ${message} (at ${sourceId}:${line})`);
+  });
+
+  const vueIndexPath = path.join(__dirname, '../../public/index.html');
+  await win.loadFile(vueIndexPath);
 
   // Handle status changes
   if (webRunner) {
@@ -92,7 +101,7 @@ ipcMain.handle('open-folder', async (event, folderPath: string) => {
 
 app.whenReady().then(async () => {
   await startServer();
-  createWindow();
+  await createWindow();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

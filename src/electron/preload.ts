@@ -8,5 +8,9 @@ import { contextBridge, ipcRenderer } from 'electron';
 // Expose protected methods that allow the renderer process to use
 // ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
-  openFolder: (path: string) => ipcRenderer.invoke('open-folder', path)
+  openFolder: (path: string) => ipcRenderer.invoke('open-folder', path),
+});
+
+contextBridge.exposeInMainWorld('backend', {
+  port: process.env.BACKEND_PORT,
 });

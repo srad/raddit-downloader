@@ -1,0 +1,50 @@
+/* Bootstrap 5 Theme Configuration - Compact Desktop Style */
+
+// 1. Color System Overrides
+$primary: #f4511e;
+$secondary: #6c757d; // Standard secondary
+$info: #21707c;
+$body-bg: #121212;    // Slightly lighter than pure black for depth
+$body-color: #e0e0e0;
+
+// Dark Mode
+$enable-dark-mode: true;
+$color-mode-type: media-query;
+
+// 2. Compact & Sharp Typography/Spacing
+$font-family-base: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+$font-size-base: 0.875rem; // 14px
+$font-weight-base: 400;
+$line-height-base: 1.4;
+
+$input-bg: #1e1e1e;
+$input-border-color: #444;
+
+$body-bg-dark: #161616;    // Example: A deep slate blue
+$body-color-dark: #f8fafc; // Example: A very light gray
+
+// 4. Import Bootstrap
+@import "bootstrap/scss/bootstrap";
+
+/* Custom Global Tweaks */
+html, body, #app {
+  height: 100%;
+  overflow: hidden;
+}
+
+// Scrollbar
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #121212;
+}
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border: 2px solid #121212; /* "Padding" around thumb */
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
