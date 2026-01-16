@@ -10,9 +10,8 @@ export interface RateLimitInfo {
 
 @singleton()
 export class RedditApiService {
-  //private userAgent = 'RadditDownloader/2.0 (by /u/reddit; https://github.com/srad/raddit-downloader)';
   private userAgent =
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
   private lastRequestTime = 0;
   private readonly minRequestDelay = 2000; // 2 seconds for safety (30 req/min)
   private rateLimitInfo: RateLimitInfo | null = null;
@@ -45,7 +44,7 @@ export class RedditApiService {
     after: string = '',
     signal?: AbortSignal,
   ): Promise<RedditApiResponse> {
-    const url = `https://www.reddit.com/r/${subreddit}/${sorting}/.json?sort=${sorting}&t=${time}&limit=${limit}&after=${after}`;
+    const url = `https://old.reddit.com/r/${subreddit}/${sorting}/.json?sort=${sorting}&t=${time}&limit=${limit}&after=${after}`;
     return this.fetchJson<RedditApiResponse>(url, signal);
   }
 
@@ -55,12 +54,13 @@ export class RedditApiService {
     after: string = '',
     signal?: AbortSignal,
   ): Promise<RedditApiResponse> {
-    const url = `https://www.reddit.com/user/${username}/submitted/.json?limit=${limit}&after=${after}`;
+    const url = `https://old.reddit.com/user/${username}/submitted/.json?limit=${limit}&after=${after}`;
     return this.fetchJson<RedditApiResponse>(url, signal);
   }
 
   public async fetchPost(url: string, signal?: AbortSignal): Promise<RedditApiResponse[]> {
-    return this.fetchJson<RedditApiResponse[]>(url + '.json', signal);
+    const oldUrl = url.replace('www.reddit.com', 'old.reddit.com');
+    return this.fetchJson<RedditApiResponse[]>(oldUrl + '.json', signal);
   }
 
   private async fetchJson<T = RedditApiResponse>(url: string, signal?: AbortSignal, retryCount = 0): Promise<T> {
@@ -103,6 +103,14 @@ export class RedditApiService {
       const response = await fetch(url, {
         headers: {
           'User-Agent': this.userAgent,
+          'Accept': 'application/json, text/plain, */*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Referer': 'https://www.reddit.com/',
+          'DNT': '1',
+          'Connection': 'keep-alive',
+          'Sec-Fetch-Dest': 'empty',
+          'Sec-Fetch-Mode': 'cors',
+          'Sec-Fetch-Site': 'same-origin',
         },
         signal: controller.signal,
       });
