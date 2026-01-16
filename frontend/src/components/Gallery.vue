@@ -26,10 +26,10 @@
         {{ allItems.length === 0 ? 'Folder is empty' : 'No files match filter' }}
       </div>
 
-      <div v-for="(item, index) in visibleItems" :key="item.path"
+      <div v-for="item in visibleItems" :key="item.path"
            class="gallery-item"
            :class="{ selected: selectedItems.has(item.path) }"
-           @click="openLightbox(index)">
+           @click="openLightbox(item.path)">
         
         <input type="checkbox" class="item-checkbox"
                :checked="selectedItems.has(item.path)"
@@ -47,7 +47,7 @@
       v-if="lightboxOpen"
       :items="filteredItems"
       :index="lightboxIndex"
-      @update="index => lightboxIndex = index"
+      @update-index="idx => lightboxItemPath = filteredItems[idx]?.path || null"
       @close="lightboxOpen = false"
       :is-open="lightboxOpen"
     />
@@ -75,10 +75,15 @@ const filterType = ref('all');
 const selectedItems = ref(new Set<string>());
 
 const lightboxOpen = ref(false);
-const lightboxIndex = ref(-1);
+const lightboxItemPath = ref<string | null>(null);
 const visibleLimit = ref(50);
 const scrollContainer = ref<HTMLElement | null>(null);
 const isLoadingMore = ref(false);
+
+const lightboxIndex = computed(() => {
+  if (!lightboxItemPath.value) return -1;
+  return filteredItems.value.findIndex(item => item.path === lightboxItemPath.value);
+});
 
 const currentPath = computed(() => {
   if (!route.params.path) return '';
@@ -148,8 +153,8 @@ const deleteSelected = async () => {
   } catch (err) { alert('Delete failed'); }
 };
 
-const openLightbox = (index: number) => {
-  lightboxIndex.value = index;
+const openLightbox = (path: string) => {
+  lightboxItemPath.value = path;
   lightboxOpen.value = true;
 };
 </script>

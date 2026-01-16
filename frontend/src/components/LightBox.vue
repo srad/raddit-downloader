@@ -11,7 +11,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'update', index: number): void;
+  (e: 'update-index', index: number): void;
   (e: 'close'): void;
 }>();
 
@@ -46,13 +46,13 @@ const close = () => emit('close');
 
 const next = () => {
   if (props.index < props.items.length - 1) {
-    emit('update', props.index + 1);
+    emit('update-index', props.index + 1);
   }
 };
 
 const prev = () => {
   if (props.index > 0) {
-    emit('update', props.index - 1);
+    emit('update-index', props.index - 1);
   }
 };
 
