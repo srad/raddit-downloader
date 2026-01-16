@@ -30,8 +30,8 @@
     <div v-if="isRunning" class="progress-bar-container mb-3">
       <div 
         class="progress-bar-fill" 
-        :class="{ 'indeterminate': isInfinite }"
-        :style="{ width: (isInfinite ? '100%' : progressPercentage + '%') }"
+        :class="{ 'is-indeterminate': isInfinite }"
+        :style="isInfinite ? {} : { width: progressPercentage + '%' }"
       ></div>
       <span class="progress-text">
         {{ progress?.downloaded || 0 }} / {{ displayTotal }} posts 
@@ -165,17 +165,16 @@ const stopDownload = () => emit('stop');
     transition: width 0.3s ease;
 }
 
-.progress-bar-fill.indeterminate {
+.progress-bar-fill.is-indeterminate {
     width: 100%;
     background: linear-gradient(90deg, #ff4500 0%, #ff8c00 50%, #ff4500 100%);
     background-size: 200% 100%;
-    animation: move-indeterminate 1.5s ease-in-out infinite;
+    animation: move-indeterminate 2s linear infinite;
 }
 
 @keyframes move-indeterminate {
-    0% { transform: translateX(-50%); }
-    50% { transform: translateX(0%); }
-    100% { transform: translateX(-50%); }
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
 }
 
 .progress-text {

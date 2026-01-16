@@ -122,13 +122,6 @@ html, body, #app {
     background: var(--bg);
 }
 
-/* Components */
-.btn {
-    border-radius: 8px;
-    font-weight: 600;
-    transition: all 0.2s;
-}
-
 .btn-primary {
     background: var(--primary);
     border: none;

@@ -489,7 +489,7 @@ export class WebRunner extends EventEmitter implements Runner {
 
                 return {
                     id: id,
-                    filename: item.name, // Use item.name from fs as filename
+                    filename: item.name,
                     isDirectory: item.isDirectory(),
                     path: itemRelativePath,
                     size: size,
@@ -836,9 +836,9 @@ export class WebRunner extends EventEmitter implements Runner {
             target: subreddit,
             logger: {log: socketLogger},
             options: {delayBetweenPosts: 200, signal},
-            onProgress: (downloaded: number, total: number) => {
-                // Emit progress event
-                this.io.emit('progress', { downloaded, total });
+            onProgress: (downloaded: number, total: number, folder: string) => {
+                // Emit progress event with current folder
+                this.io.emit('progress', { downloaded, total, folder });
             },
             onDownloadedItem: (item: FileItem) => {
                 // Push the newly added item to the frontend

@@ -63,9 +63,6 @@ export class DownloadOrchestrator {
         return await this.downloadManager.download(post, targetDir, filenameBase, source);
     }
 
-    /**
-     * Download a batch of posts from a subreddit or user
-     */
     public async downloadBatch({
                                    target,
                                    logger,
@@ -79,7 +76,7 @@ export class DownloadOrchestrator {
         logger: Logger,
         options: DownloadOptions,
         lastPostId?: string,
-        onProgress?: (downloaded: number, total: number) => void,
+        onProgress?: (downloaded: number, total: number, folder: string) => void,
         onDownloadedItem?: (item: FileItem) => void,
         onNewFolder?: (folderName: string, folderPath: string) => void
     }): Promise<void> {
@@ -156,7 +153,13 @@ export class DownloadOrchestrator {
                     this.state.downloadedPosts.failed++;
                 }
                 const [remaining, processed] = this.state.getPostsRemaining();
-                onProgress(processed, this.state.numberOfPosts);
+                const folder = path.basename(this.getDownloadDirectory({
+                    subreddit: post.subreddit,
+                    isUser,
+                    isOver18: post.over_18 || false,
+                    user: post.author
+                }));
+                onProgress(processed, this.state.numberOfPosts, folder);
             }
 
             // Continue with next batch if needed

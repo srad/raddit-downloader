@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import FileList from './components/FileList.vue';
 import { RouterView, useRouter } from 'vue-router';
 import { getApiBase } from './utils/config';
@@ -7,7 +7,6 @@ import type { SearchPayload } from './components/SearchBar.vue';
 import SearchBar from './components/SearchBar.vue';
 import LogPanel from './components/LogPanel.vue';
 import { useSocket } from './composables/useSocket.ts';
-import { watch, onUnmounted } from 'vue';
 import { useThrottleFn } from '@vueuse/core';
 
 declare global {
@@ -38,14 +37,16 @@ const formatSize = (bytes: number) => {
 };
 
 /**
- * Fetch stats with a 5-second throttle to prevent 
+ * Fetch stats with a 5-second throttle to prevent
  * performance hits during rapid downloads.
  */
 const fetchStatsThrottled = useThrottleFn(async () => {
   try {
     const res = await fetch(`${apiBase}/api/stats`);
     if (res.ok) stats.value = await res.json();
-  } catch (e) { console.error(e); }
+  } catch (e) {
+    console.error(e);
+  }
 }, 5000);
 
 let statsInterval: any = null;
@@ -61,7 +62,9 @@ const openDataFolder = async () => {
         alert(`Data folder: ${data.path}`);
       }
     }
-  } catch (e) { console.error(e); }
+  } catch (e) {
+    console.error(e);
+  }
 };
 
 const startDownload = async (payload: SearchPayload) => {
@@ -72,26 +75,32 @@ const startDownload = async (payload: SearchPayload) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-  } catch (e) { alert('Failed to start'); }
+  } catch (e) {
+    alert('Failed to start');
+  }
 };
 
 const stopDownload = async () => {
   try {
     await fetch(`${apiBase}/api/stop`, { method: 'POST' });
-  } catch (e) { console.error(e); }
+  } catch (e) {
+    console.error(e);
+  }
 };
 
 onMounted(async () => {
   try {
     const res = await fetch(`${apiBase}/api/history`);
     if (res.ok) history.value = await res.json();
-    
+
     // Initial fetch
     fetchStatsThrottled();
 
     // Safety fallback: Poll every 60 seconds for changes made outside the app
     statsInterval = setInterval(fetchStatsThrottled, 60000);
-  } catch (e) { console.error(e); }
+  } catch (e) {
+    console.error(e);
+  }
 });
 
 onUnmounted(() => {
@@ -127,9 +136,9 @@ watch(status, (newStatus) => {
               <span class="stat-value">{{ formatSize(stats.totalSize) }}</span>
             </div>
           </div>
-          <button class="btn btn-secondary btn-sm" @click="openDataFolder">Open Folder</button>
-          <button class="btn btn-secondary btn-sm" @click="router.push('/duplicates')">Duplicates</button>
-          <button class="btn btn-secondary btn-sm" @click="logsVisible = !logsVisible" :class="{ active: logsVisible }">
+          <button class="btn btn-outline-secondary" @click="openDataFolder">Open Folder</button>
+          <button class="btn btn-outline-secondary" @click="router.push('/duplicates')">Duplicates</button>
+          <button class="btn btn-outline-secondary" @click="logsVisible = !logsVisible" :class="{ active: logsVisible }">
             Logs
           </button>
         </div>

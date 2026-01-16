@@ -26,11 +26,11 @@ const displayTotal = computed(() => isInfinite.value ? 'All' : props.total);
 
 <template>
   <div class="progress-wrapper">
-    <progress 
-      :value="isInfinite ? undefined : current" 
-      :max="isInfinite ? undefined : total" 
-      class="progress-bar"
-    ></progress>
+    <div 
+      class="progress-inner" 
+      :class="{ 'is-indeterminate': isInfinite }"
+      :style="isInfinite ? {} : { width: percentage + '%' }"
+    ></div>
 
     <small class="progress-text"> 
       {{ current }} / {{ displayTotal }} posts 
@@ -40,48 +40,31 @@ const displayTotal = computed(() => isInfinite.value ? 'All' : props.total);
 </template>
 
 <style scoped>
-/* Pico CSS handles the visual bar style via the <progress> tag.
-   We just need a wrapper to position the text overlay if you want it
-   centered on top, or standard flow if you want it below.
-
-   The style below centers the text ON TOP of the bar, similar to your original design.
-*/
-
 .progress-wrapper {
   position: relative;
   width: 100%;
-  height: 1.5rem; /* Height of the container */
+  height: 1.5rem;
   background: var(--pico-card-sectioning-background-color);
   border-radius: var(--pico-border-radius);
   overflow: hidden;
 }
 
-.progress-bar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
+.progress-inner {
   height: 100%;
-  margin-bottom: 0; /* Remove Pico's default bottom margin */
-  border-radius: 0;
-  appearance: none;
-  border: none;
-  background: transparent;
-}
-
-/* Chrome/Safari/Edge */
-.progress-bar::-webkit-progress-bar {
-  background: transparent;
-}
-.progress-bar::-webkit-progress-value {
   background-color: var(--pico-primary);
   transition: width 0.3s ease;
 }
 
-/* Firefox */
-.progress-bar::-moz-progress-bar {
-  background-color: var(--pico-primary);
-  transition: width 0.3s ease;
+.progress-inner.is-indeterminate {
+  width: 100%;
+  background: linear-gradient(90deg, var(--pico-primary) 0%, #ff8c00 50%, var(--pico-primary) 100%);
+  background-size: 200% 100%;
+  animation: move-indeterminate 2s linear infinite;
+}
+
+@keyframes move-indeterminate {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
 }
 
 .progress-text {

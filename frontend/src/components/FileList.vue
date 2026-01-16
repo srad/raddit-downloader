@@ -6,8 +6,14 @@
     <div v-for="folder in folders" 
          :key="folder.path" 
          class="folder-item"
-         :class="{ active: isActive(folder.path) }" 
+         :class="{ 
+           active: isActive(folder.path),
+           'is-downloading': currentDownloadingFolder === folder.path
+         }" 
          @click="selectFolder(folder.path)">
+        <div v-if="currentDownloadingFolder === folder.path" class="spinner-border spinner-border-sm text-primary me-2" role="status" style="width: 0.9rem; height: 0.9rem; border-width: 0.15em; flex-shrink: 0;">
+            <span class="visually-hidden">Loading...</span>
+        </div>
         <span class="folder-label text-truncate">{{ folder.filename }} ({{ folder.fileCount }})</span>
         <span class="folder-delete" @click.stop="deleteFolder(folder.path)" title="Delete Folder">&times;</span>
     </div>
@@ -35,14 +41,20 @@ const props = defineProps<{
 
 const router = useRouter();
 const route = useRoute();
-const { refreshSignal, socket } = useSocket();
+const { refreshSignal, socket, status } = useSocket();
 const apiBase = getApiBase();
 
 const folders = ref<FolderItem[]>([]);
 const isLoading = ref(false);
+const currentDownloadingFolder = ref<string | null>(null);
 
 // Listen for new items to update folder counts
 if (socket) {
+  socket.on('progress', (data: any) => {
+    // data.folder is like "r_pics"
+    currentDownloadingFolder.value = data.folder;
+  });
+
   socket.on('new_item', (item: any) => {
     // item.path is "r_pics/image.jpg"
     const lastSlashIndex = item.path.lastIndexOf('/');
@@ -70,6 +82,12 @@ if (socket) {
     }
   });
 }
+
+watch(status, (newStatus) => {
+  if (newStatus === 'idle') {
+    currentDownloadingFolder.value = null;
+  }
+});
 
 const fetchFolders = async () => {
   isLoading.value = true;
@@ -109,6 +127,16 @@ onMounted(fetchFolders);
 </script>
 
 <style scoped>
+.folder-item.is-downloading {
+    background: rgba(255, 69, 0, 0.1);
+    border-left: 3px solid #ff4500;
+}
+
+/* Hide the 📁 icon from style.scss when downloading */
+.folder-item.is-downloading::before {
+    display: none;
+}
+
 .folder-delete {
     margin-left: auto;
     color: #ff4444;
