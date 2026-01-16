@@ -173,15 +173,4 @@ const handleKeyDown = (e: KeyboardEvent) => {
   background: #333;
   border-radius: 3px;
 }
-
-/* Animation - Simple fade to avoid 'wobble' */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.15s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
 </style>

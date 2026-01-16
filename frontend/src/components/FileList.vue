@@ -127,6 +127,21 @@ onMounted(fetchFolders);
 </script>
 
 <style scoped>
+.folder-item {
+  cursor: pointer;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-color 0.1s;
+  color: #ccc;
+  font-size: 0.9rem;
+
+  &:hover { background: var(--highlight); color: white; }
+  &.active { background: #222; color: var(--primary); font-weight: 600; }
+  &::before { content: '📁'; color: #ffd700; font-size: 0.9rem; }
+}
+
 .folder-item.is-downloading {
     background: rgba(255, 69, 0, 0.1);
     border-left: 3px solid #ff4500;

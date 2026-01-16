@@ -128,6 +128,14 @@ const stopDownload = () => emit('stop');
 </script>
 
 <style scoped>
+.search-container {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
 .cursor-pointer { cursor: pointer; }
 .toggle-icon { transition: transform 0.2s; }
 .options-toggle.open .toggle-icon { transform: rotate(180deg); }
