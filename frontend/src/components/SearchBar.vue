@@ -2,18 +2,13 @@
   <form class="search-container" @submit.prevent="startDownload">
     <div class="main-input-group d-flex gap-3 mb-2">
       <div class="input-group flex-grow-1">
-        <input
-          list="history-list"
+        <AutocompleteInput
           v-model="subreddit"
+          :items="props.history"
           placeholder="Enter subreddit or u/username..."
-          required
           :disabled="isRunning"
-          class="form-control px-3 py-3"
-          style="font-size: 1.05rem;"
+          @submit="startDownload"
         />
-        <datalist id="history-list">
-          <option v-for="h in props.history" :key="h" :value="h"></option>
-        </datalist>
       </div>
 
       <button v-if="!isRunning" type="submit" class="btn btn-primary px-4 py-2 d-flex align-items-center">
@@ -86,6 +81,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import AutocompleteInput from './AutocompleteInput.vue';
 
 export interface SearchPayload {
   subreddit: string;
@@ -116,13 +112,13 @@ const time = ref('all');
 const limit = ref<number>(0);
 const optionsOpen = ref(false);
 
+const isInfinite = computed(() => (props.progress?.total || 0) > 1000000000);
+const displayTotal = computed(() => isInfinite.value ? 'All' : (props.progress?.total || 0));
+
 const progressPercentage = computed(() => {
   if (!props.progress || props.progress.total <= 0 || isInfinite.value) return 0;
   return Math.round((props.progress.downloaded / props.progress.total) * 100);
 });
-
-const isInfinite = computed(() => (props.progress?.total || 0) > 1000000000);
-const displayTotal = computed(() => isInfinite.value ? 'All' : (props.progress?.total || 0));
 
 const startDownload = () => {
   emit('start', { subreddit: subreddit.value, sorting: sorting.value, time: time.value, limit: limit.value });
@@ -173,12 +169,13 @@ const stopDownload = () => emit('stop');
     width: 100%;
     background: linear-gradient(90deg, #ff4500 0%, #ff8c00 50%, #ff4500 100%);
     background-size: 200% 100%;
-    animation: move-indeterminate 2s linear infinite;
+    animation: move-indeterminate 1.5s ease-in-out infinite;
 }
 
 @keyframes move-indeterminate {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
+    0% { transform: translateX(-50%); }
+    50% { transform: translateX(0%); }
+    100% { transform: translateX(-50%); }
 }
 
 .progress-text {
