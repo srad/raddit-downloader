@@ -33,8 +33,7 @@ describe('DownloadManager', () => {
     mockConfig = {
       use_history_database: true,
       prevent_duplicates: true,
-      duplicate_threshold: 5,
-      file_naming_scheme: { showTitle: true }
+      duplicate_threshold: 5
     } as any;
     mockDb = {
       getDownloadRecord: jest.fn().mockResolvedValue(null),

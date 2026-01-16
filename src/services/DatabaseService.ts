@@ -62,6 +62,14 @@ export class DatabaseService {
         return;
       }
 
+      // Create settings table
+      this.db.run(`
+        CREATE TABLE IF NOT EXISTS settings (
+          key TEXT PRIMARY KEY,
+          value TEXT
+        )
+      `);
+
       // Migrate old databases that have 'subreddit' column
       this.migrateToSourceColumn();
 
@@ -339,6 +347,50 @@ export class DatabaseService {
           resolve(row.count || 0);
         }
       });
+    });
+  }
+
+  public async getSetting(key: string): Promise<string | null> {
+    return new Promise((resolve, reject) => {
+      this.db.get('SELECT value FROM settings WHERE key = ?', [key], (err, row: { value: string } | undefined) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(row ? row.value : null);
+        }
+      });
+    });
+  }
+
+  public async getAllSettings(): Promise<Record<string, string>> {
+    return new Promise((resolve, reject) => {
+      this.db.all('SELECT key, value FROM settings', [], (err, rows: Array<{ key: string, value: string }>) => {
+        if (err) {
+          reject(err);
+        } else {
+          const settings: Record<string, string> = {};
+          rows.forEach(row => {
+            settings[row.key] = row.value;
+          });
+          resolve(settings);
+        }
+      });
+    });
+  }
+
+  public async setSetting(key: string, value: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.db.run(
+        'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+        [key, value],
+        (err) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        }
+      );
     });
   }
 

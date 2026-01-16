@@ -160,10 +160,10 @@ Edit `user_config.json` (created on first run):
 {
   "use_history_database": true,          // Track and skip downloaded files
   "redownload_posts": false,             // Force re-download existing posts
-  "download_gallery_posts": true,        // Include Reddit galleries
-  "download_youtube_videos_experimental": false,  // Requires ffmpeg
+  "prevent_duplicates": true,            // Use pHash for duplicate detection
+  "duplicate_threshold": 5,              // Stricter (lower) or looser (higher) match
   "rate_limit_delay_ms": 1000,           // Delay between API requests
-  "nsfw_separate_folder": false          // Separate NSFW content
+  "download_youtube_videos_experimental": false  // Requires ffmpeg
 }
 ```
 

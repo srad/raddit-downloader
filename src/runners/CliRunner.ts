@@ -33,17 +33,22 @@ export class CliRunner implements Runner {
 
     // 1. Load Config & Register
     const config = ConfigService.load();
-    ConfigService.ensurePostListFile();
-    const validation = ConfigService.validate(config);
 
     container.register(CONFIG_TOKEN, { useValue: config });
 
     // 2. Resolve Services
     const loggerService = container.resolve(LoggerService);
+    const configService = container.resolve(ConfigService);
+    const dbService = container.resolve(DatabaseService);
+
+    // Reload config from DB if available
+    const dbConfig = await configService.getConfig();
+    Object.assign(config, dbConfig);
+    const validation = ConfigService.validate(config);
+
     const state = container.resolve(StateService);
     const apiService = container.resolve(RedditApiService);
     const fsService = container.resolve(FileSystemService);
-    const dbService = container.resolve(DatabaseService);
     const downloadManager = container.resolve(DownloadManager);
     const orchestrator = container.resolve(DownloadOrchestrator);
     const phashService = container.resolve(PhashService);
@@ -160,25 +165,7 @@ export class CliRunner implements Runner {
     }
 
     async function start() {
-      if (config.download_post_list_options.enabled) {
-        const urls = ConfigService.readPostListFile();
-        state.initFromPostListOptions(urls.length);
-        loggerService.log(chalk.green(`Starting download of ${urls.length} posts from list file.`), false);
-
-        for (const url of urls) {
-          try {
-            const data = await apiService.fetchPost(url);
-            const post = data[0].data.children[0].data;
-            await orchestrator.downloadPost(post, loggerService);
-          } catch (e: unknown) {
-            const message = e instanceof Error ? e.message : String(e);
-            loggerService.log(`Failed to download ${url}: ${message}`, true);
-          }
-        }
-        loggerService.log('Finished downloading from post list.', false);
-        process.exit(0);
-
-      } else if (config.testingMode) {
+      if (config.testingMode) {
         state.startTime = new Date();
         await downloadSubredditBatch(state.getCurrentSubreddit());
       } else {

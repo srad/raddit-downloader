@@ -1,29 +1,39 @@
 import { createMemoryHistory, createRouter } from 'vue-router';
 import Gallery from './components/Gallery.vue';
 import Duplicates from './components/Duplicates.vue';
+import SettingsView from './views/SettingsView.vue';
+import MainLayout from './views/MainLayout.vue';
 
 const routes = [
   {
     path: '/',
-    redirect: '/gallery', // Default to gallery view, or could be '/browse' based on your folder structure logic
+    component: MainLayout,
+    children: [
+      {
+        path: '',
+        redirect: '/gallery',
+      },
+      {
+        path: 'gallery',
+        redirect: '/browse',
+      },
+      {
+        path: 'browse/:path(.*)*',
+        name: 'Gallery',
+        component: Gallery,
+        props: true,
+      },
+      {
+        path: 'duplicates',
+        name: 'Duplicates',
+        component: Duplicates,
+      },
+    ]
   },
   {
-    // Catch-all route for file browsing
-    // :path(.*)* allows matching /gallery/folder/subfolder
-    path: '/browse/:path(.*)*',
-    name: 'Gallery',
-    component: Gallery,
-    props: true,
-  },
-  // Alias for the root gallery view if accessed directly
-  {
-    path: '/gallery',
-    redirect: '/browse',
-  },
-  {
-    path: '/duplicates',
-    name: 'Duplicates',
-    component: Duplicates,
+    path: '/settings',
+    name: 'Settings',
+    component: SettingsView,
   },
 ];
 

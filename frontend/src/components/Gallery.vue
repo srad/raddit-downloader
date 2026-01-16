@@ -76,7 +76,7 @@ const selectedItems = ref(new Set<string>());
 
 const lightboxOpen = ref(false);
 const lightboxItemPath = ref<string | null>(null);
-const visibleLimit = ref(50);
+const visibleLimit = ref(100);
 const scrollContainer = ref<HTMLElement | null>(null);
 const isLoadingMore = ref(false);
 
@@ -123,10 +123,16 @@ const filteredItems = computed(() => {
 const visibleItems = computed(() => filteredItems.value.slice(0, visibleLimit.value));
 
 const loadMore = async () => {
-  if (isLoadingMore.value || visibleLimit.value >= filteredItems.value.length) return;
+  console.log('[DEBUG] Infinite scroll triggered. limit:', visibleLimit.value, 'total:', filteredItems.value.length);
+  if (isLoadingMore.value || visibleLimit.value >= filteredItems.value.length) {
+    console.log('[DEBUG] Skip loading more. loading:', isLoadingMore.value, 'done:', visibleLimit.value >= filteredItems.value.length);
+    return;
+  }
   isLoadingMore.value = true;
-  await new Promise(r => setTimeout(r, 50));
-  visibleLimit.value += 50;
+  console.log('[DEBUG] Loading more items...', visibleLimit.value, '->', visibleLimit.value + 100);
+  // Small delay to prevent rapid-fire triggers
+  await new Promise(r => setTimeout(r, 100));
+  visibleLimit.value += 100;
   await nextTick();
   isLoadingMore.value = false;
 };
@@ -142,14 +148,14 @@ const fetchFiles = async () => {
 
 watch(currentPath, () => {
   selectedItems.value.clear();
-  visibleLimit.value = 50;
+  visibleLimit.value = 100;
   if (scrollContainer.value) scrollContainer.value.scrollTop = 0;
   fetchFiles();
 }, { immediate: true });
 
 watch(refreshSignal, useDebounceFn(fetchFiles, 1000));
 watch([filterText, filterType], () => {
-  visibleLimit.value = 50;
+  visibleLimit.value = 100;
   if (scrollContainer.value) scrollContainer.value.scrollTop = 0;
 });
 

@@ -8,18 +8,6 @@ import { Config, RedditPost, RedditApiResponse } from '../src/types';
 
 // Mock implementations
 const mockConfig: Config = {
-  file_naming_scheme: {
-    showDate: true,
-    showScore: false,
-    showSubreddit: true,
-    showAuthor: true,
-    showTitle: true,
-  },
-  download_post_list_options: {
-    enabled: false,
-    repeatForever: false,
-    timeBetweenRuns: 0,
-  },
   detailed_logs: false,
   local_logs: false,
   local_logs_naming_scheme: {
@@ -27,16 +15,10 @@ const mockConfig: Config = {
     showSubreddits: true,
     showNumberOfPosts: true,
   },
-  separate_clean_nsfw: false,
   redownload_posts: false,
-  download_gallery_posts: true,
-  download_self_posts: true,
-  download_media_posts: true,
-  download_link_posts: true,
   download_comments: false,
   download_youtube_videos_experimental: false,
   use_history_database: false,
-  group_gallery_images: false,
 };
 
 const mockPost: RedditPost = {
@@ -136,24 +118,6 @@ describe('DownloadOrchestrator', () => {
         '/downloads/r_pics',
         expect.stringMatching(/^pics_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/),
         'pics' // Source parameter (subreddit name)
-      );
-    });
-
-    it('should handle NSFW separation when configured', async () => {
-      const nsfwConfig = { ...mockConfig, separate_clean_nsfw: true };
-      const nsfwPost = { ...mockPost, over_18: true };
-      const nsfwOrchestrator = new DownloadOrchestrator(
-        nsfwConfig,
-        mockState,
-        mockApiService,
-        mockFsService,
-        mockDownloadManager
-      );
-
-      await nsfwOrchestrator.downloadPost(nsfwPost, mockLogger);
-
-      expect(mockFsService.ensureDirectoryExists).toHaveBeenCalledWith(
-        '/downloads/r_pics'
       );
     });
 

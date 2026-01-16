@@ -96,18 +96,6 @@ export interface MediaMetadataItem {
 }
 
 export interface Config {
-  file_naming_scheme: {
-    showDate?: boolean;
-    showScore?: boolean;
-    showSubreddit?: boolean;
-    showAuthor?: boolean;
-    showTitle?: boolean;
-  };
-  download_post_list_options: {
-    enabled: boolean;
-    repeatForever: boolean;
-    timeBetweenRuns: number;
-  };
   testingMode?: boolean;
   testingModeOptions?: TestingModeOptions;
   detailed_logs?: boolean;
@@ -117,16 +105,10 @@ export interface Config {
     showSubreddits: boolean;
     showNumberOfPosts: boolean;
   };
-  separate_clean_nsfw?: boolean;
   redownload_posts?: boolean;
-  download_gallery_posts?: boolean;
-  download_self_posts?: boolean;
-  download_media_posts?: boolean;
-  download_link_posts?: boolean;
   download_comments?: boolean;
   download_youtube_videos_experimental?: boolean;
   use_history_database?: boolean;
-  group_gallery_images?: boolean;
   rate_limit_delay_ms?: number; // Custom delay between API requests (default: 2000ms)
   prevent_duplicates?: boolean; // Active duplicate prevention during download
   duplicate_threshold?: number; // Hamming distance threshold for duplicate detection (default: 5)
@@ -184,7 +166,6 @@ export interface State {
   downloadedPosts: DownloadStats;
 
   initFromTestingMode(): void;
-  initFromPostListOptions(postCount: number): void;
   initFromPrompts(result: PromptAnswers): boolean;
   getPostsRemaining(): [number, number];
   resetDownloadStats(): void;

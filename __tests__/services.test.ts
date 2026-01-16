@@ -5,18 +5,6 @@ import { Config, PromptAnswers } from '../src/types';
 
 // Mock config for testing
 const mockConfig: Config = {
-  file_naming_scheme: {
-    showDate: true,
-    showScore: false,
-    showSubreddit: true,
-    showAuthor: true,
-    showTitle: true,
-  },
-  download_post_list_options: {
-    enabled: false,
-    repeatForever: false,
-    timeBetweenRuns: 0,
-  },
   detailed_logs: false,
   local_logs: false,
   local_logs_naming_scheme: {
@@ -24,16 +12,10 @@ const mockConfig: Config = {
     showSubreddits: true,
     showNumberOfPosts: true,
   },
-  separate_clean_nsfw: false,
   redownload_posts: false,
-  download_gallery_posts: true,
-  download_self_posts: true,
-  download_media_posts: true,
-  download_link_posts: true,
   download_comments: false,
   download_youtube_videos_experimental: false,
   use_history_database: true,
-  group_gallery_images: false,
 };
 
 describe('StateService', () => {
@@ -184,39 +166,12 @@ describe('StateService', () => {
 });
 
 describe('ConfigService', () => {
-  describe('validate', () => {
-    it('should validate a valid config', () => {
+  describe('ConfigService.validate', () => {
+    it('should return valid for correct config', () => {
       const result = ConfigService.validate(mockConfig);
-
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
-
-    it('should detect missing required fields', () => {
-      const invalidConfig = {
-        ...mockConfig,
-        file_naming_scheme: undefined,
-      } as any;
-
-      const result = ConfigService.validate(invalidConfig);
-
-      expect(result.valid).toBe(false);
-      expect(result.errors.length).toBeGreaterThan(0);
-    });
-
-    it('should detect if no post types are enabled', () => {
-      const invalidConfig = {
-        ...mockConfig,
-        download_gallery_posts: false,
-        download_self_posts: false,
-        download_media_posts: false,
-        download_link_posts: false,
-      };
-
-      const result = ConfigService.validate(invalidConfig);
-
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain('No post types are enabled for download');
-    });
   });
+});
 });

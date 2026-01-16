@@ -17,6 +17,7 @@ const emit = defineEmits<{
 
 // 3. State
 const resolution = ref('');
+const isElectron = !!window.electronAPI;
 
 // 4. Computed
 const currentItem = computed(() => {
@@ -87,7 +88,7 @@ watch(
 </script>
 
 <template>
-  <div v-if="isOpen" class="lightbox-overlay" role="dialog" aria-modal="true">
+  <div v-if="isOpen" class="lightbox-overlay" :class="{ 'with-title-bar': isElectron }" role="dialog" aria-modal="true">
     <button class="lightbox-close" @click="close" aria-label="Close">&times;</button>
 
     <button v-if="index > 0" class="nav-btn prev" @click.stop="prev" aria-label="Previous image">&#10094;</button>
@@ -133,18 +134,23 @@ watch(
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(0, 0, 0, 0.95);
+  background: rgba(0, 0, 0, 0.8);
   z-index: 9999;
   display: flex;
   flex-direction: column;
   color: white; /* Force white text regardless of theme */
 }
 
+.lightbox-overlay.with-title-bar {
+  top: 57px;
+  height: calc(100vh - 57px);
+}
+
 /* Close Button - Custom absolute positioning */
 .lightbox-close {
   position: absolute;
-  top: 1rem;
-  right: 1rem;
+  top: 0rem;
+  right: 1.5rem;
   background: transparent;
   border: none;
   color: rgba(255, 255, 255, 0.7);

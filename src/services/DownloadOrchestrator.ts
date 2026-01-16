@@ -200,9 +200,5 @@ export class DownloadOrchestrator {
             return `${this.state.downloadDirectoryBase}/u_${user}`;
         }
         return `${this.state.downloadDirectoryBase}/r_${subreddit}`;
-        // const cleanOrNsfw = isOver18 ? 'nsfw' : 'clean';
-        // return this.config.separate_clean_nsfw
-        //   ? `${this.state.downloadDirectoryBase}/${cleanOrNsfw}/${subreddit}`
-        //   : `${this.state.downloadDirectoryBase}/${subreddit}`;
     }
 }

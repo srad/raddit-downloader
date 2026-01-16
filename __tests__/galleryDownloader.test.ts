@@ -33,9 +33,7 @@ describe('GalleryDownloader', () => {
       logVersionInfo: jest.fn(),
     } as any;
 
-    mockConfig = {
-      group_gallery_images: false,
-    } as Config;
+    mockConfig = {} as Config;
 
     galleryDownloader = new GalleryDownloader(
       mockFsService,

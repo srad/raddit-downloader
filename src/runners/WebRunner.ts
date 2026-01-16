@@ -35,6 +35,7 @@ export class WebRunner extends EventEmitter implements Runner {
   private port = 3000;
   private isRunning = false;
   private dbService!: DatabaseService;
+  private configService!: ConfigService;
   private abortController: AbortController | null = null;
   private duplicateScanController: AbortController | null = null;
 
@@ -311,7 +312,6 @@ export class WebRunner extends EventEmitter implements Runner {
     this.port = port;
 
     const config = ConfigService.load();
-    ConfigService.ensurePostListFile();
     if (!container.isRegistered(CONFIG_TOKEN)) {
         container.register(CONFIG_TOKEN, { useValue: config });
     }
@@ -320,6 +320,7 @@ export class WebRunner extends EventEmitter implements Runner {
     }
 
     this.dbService = container.resolve(DatabaseService);
+    this.configService = container.resolve(ConfigService);
 
     // Initialize thumbnail service
     const thumbnailService = container.resolve(ThumbnailService);
@@ -405,6 +406,32 @@ export class WebRunner extends EventEmitter implements Runner {
             res.json({ count, totalSize });
         } catch (e) {
             console.error('Failed to get stats:', e);
+            res.status(500).json({ error: String(e) });
+        }
+    });
+
+    this.app.get('/api/settings', async (req, res) => {
+        try {
+            const config = await this.configService.getConfig();
+            res.json(config);
+        } catch (e) {
+            res.status(500).json({ error: String(e) });
+        }
+    });
+
+    this.app.post('/api/settings', async (req, res) => {
+        try {
+            const config = req.body;
+            const validation = ConfigService.validate(config);
+            if (!validation.valid) {
+                return res.status(400).json({ 
+                    error: 'Invalid configuration', 
+                    details: validation.errors 
+                });
+            }
+            await this.configService.saveConfig(config);
+            res.json({ success: true, warnings: validation.warnings });
+        } catch (e) {
             res.status(500).json({ error: String(e) });
         }
     });
@@ -782,8 +809,7 @@ export class WebRunner extends EventEmitter implements Runner {
     const signal = this.abortController.signal;
 
     try {
-        const baseConfig = ConfigService.load();
-        const runConfig = { ...baseConfig };
+        const runConfig = await this.configService.getConfig();
 
         const socketLogger = (msg: string, detailed: boolean = false) => {
             this.io.emit('log', { message: msg, detailed });

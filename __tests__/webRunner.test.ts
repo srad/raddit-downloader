@@ -18,7 +18,6 @@ process.env.DATA_DIR = path.join(__dirname, 'temp_test_data');
 jest.mock('../src/services/ConfigService', () => ({
     ConfigService: {
         load: jest.fn().mockReturnValue({ testingMode: true }),
-        ensurePostListFile: jest.fn(),
     }
 }));
 

@@ -50,12 +50,6 @@ export class StateService implements State {
     }
   }
 
-  public initFromPostListOptions(postCount: number): void {
-    this.numberOfPosts = postCount;
-    this.repeatForever = this.config.download_post_list_options.repeatForever;
-    this.timeBetweenRuns = this.config.download_post_list_options.timeBetweenRuns;
-  }
-
   public initFromPrompts(result: PromptAnswers): boolean {
     if (!result || !result.subreddit) {
       return false;

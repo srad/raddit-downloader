@@ -68,14 +68,6 @@ describe('sanitizeFileName', () => {
 
 describe('getFileName', () => {
 	const baseConfig: Config = {
-		file_naming_scheme: {
-			showDate: true,
-			showScore: true,
-			showSubreddit: true,
-			showAuthor: true,
-			showTitle: true,
-		},
-        download_post_list_options: { enabled: false, repeatForever: false, timeBetweenRuns: 0 },
         local_logs_naming_scheme: { showDateAndTime: false, showSubreddits: false, showNumberOfPosts: false }
 	};
 
@@ -93,38 +85,6 @@ describe('getFileName', () => {
 		expect(result).toMatch(/^pics_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/);
 		expect(result).toContain('pics');
 		expect(result).toContain('2021-01-02');
-	});
-
-	test('config options are ignored (simple format)', () => {
-		const config: Config = { ...baseConfig, file_naming_scheme: { ...baseConfig.file_naming_scheme, showDate: false } };
-		const result = getFileName(mockPost, config);
-		// Simple format doesn't use config, should still be subreddit_timestamp
-		expect(result).toMatch(/^pics_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/);
-	});
-
-	test('always generates short clean filenames', () => {
-		// Even with very long title, filename stays simple
-		const longTitlePost = {
-			...mockPost,
-			title: 'A'.repeat(300),
-		} as unknown as RedditPost;
-		const result = getFileName(longTitlePost, baseConfig);
-		expect(result).toMatch(/^pics_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/);
-		expect(result.length).toBeLessThan(50); // Much shorter than MAX_FILENAME_LENGTH
-	});
-
-	test('no special characters or ellipsis needed', () => {
-		const postWithSpecialChars = {
-			...mockPost,
-			title: 'What? A <test> file! With&lt;HTML&gt;',
-		} as unknown as RedditPost;
-		const result = getFileName(postWithSpecialChars, baseConfig);
-		// Simple format ignores title completely
-		expect(result).toMatch(/^pics_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/);
-		expect(result).not.toContain('?');
-		expect(result).not.toContain('<');
-		expect(result).not.toContain('&');
-		expect(result).not.toMatch(/\.\.\./);
 	});
 });
 
