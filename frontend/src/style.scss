@@ -1,50 +1,176 @@
-/* Bootstrap 5 Theme Configuration - Compact Desktop Style */
+/* Original App Styles - Restored and Refined */
+:root {
+    --primary: #ff4500;
+    --primary-hover: #ff5722;
+    --bg: #0a0a0a;
+    --panel: #161616;
+    --card: #1e1e1e;
+    --text: #e8e8e8;
+    --text-muted: #999;
+    --border: #2a2a2a;
+    --highlight: #2d2d2d;
+    --success: #4caf50;
+    --danger: #f44336;
+}
 
-// 1. Color System Overrides
-$primary: #f4511e;
-$secondary: #6c757d; // Standard secondary
-$info: #21707c;
-$body-bg: #121212;    // Slightly lighter than pure black for depth
-$body-color: #e0e0e0;
+// Bootstrap 5 integration
+$primary: #ff4500;
+$body-bg: #0a0a0a;
+$body-color: #e8e8e8;
+$border-color: #2a2a2a;
 
-// Dark Mode
-$enable-dark-mode: true;
-$color-mode-type: media-query;
-
-// 2. Compact & Sharp Typography/Spacing
-$font-family-base: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-$font-size-base: 0.875rem; // 14px
-$font-weight-base: 400;
-$line-height-base: 1.4;
-
-$input-bg: #1e1e1e;
-$input-border-color: #444;
-
-$body-bg-dark: #161616;    // Example: A deep slate blue
-$body-color-dark: #f8fafc; // Example: A very light gray
-
-// 4. Import Bootstrap
 @import "bootstrap/scss/bootstrap";
 
-/* Custom Global Tweaks */
-html, body, #app {
-  height: 100%;
-  overflow: hidden;
+/* Global Resets */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
 }
 
-// Scrollbar
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+html, body, #app {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
 }
-::-webkit-scrollbar-track {
-  background: #121212;
+
+/* Layout */
+.app-layout {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
 }
-::-webkit-scrollbar-thumb {
-  background: #333;
-  border: 2px solid #121212; /* "Padding" around thumb */
-  border-radius: 5px;
+
+.app-container {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: #555;
+
+/* Header */
+.header {
+    background: var(--panel);
+    padding: 10px 15px;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
 }
+
+.header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.logo {
+    color: var(--primary);
+    font-weight: 700;
+    font-size: 1.4rem;
+    letter-spacing: -0.5px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.logo-version {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+.header-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.search-container {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Sidebar */
+.sidebar {
+    width: 280px;
+    background: #000000; // Solid black as requested
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+}
+
+.sidebar-header {
+    padding: 15px;
+    font-weight: bold;
+    color: #888;
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+    border-bottom: 1px solid var(--border);
+    text-transform: uppercase;
+}
+
+/* Main Content */
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    background: var(--bg);
+}
+
+/* Components */
+.btn {
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: var(--primary);
+    border: none;
+    &:hover { background: var(--primary-hover); transform: translateY(-1px); }
+}
+
+.btn-secondary {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    &:hover { background: var(--highlight); }
+}
+
+input, select {
+    background: var(--panel) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text) !important;
+    border-radius: 8px !important;
+    &:focus {
+        border-color: var(--primary) !important;
+        box-shadow: 0 0 0 3px rgba(255, 69, 0, 0.1) !important;
+    }
+}
+
+/* Folder List */
+.folder-item {
+    cursor: pointer;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background-color 0.1s;
+    color: #ccc;
+    font-size: 0.9rem;
+    
+    &:hover { background: var(--highlight); color: white; }
+    &.active { background: #222; color: var(--primary); font-weight: 600; }
+    &::before { content: '📁'; color: #ffd700; font-size: 0.9rem; }
+}
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: #000; }
+::-webkit-scrollbar-thumb { background: #333; border: 2px solid #000; border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: #444; }

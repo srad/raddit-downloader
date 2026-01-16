@@ -304,34 +304,33 @@ useInfiniteScroll(
     </div>
 
     <!-- Toolbar -->
-    <nav class="duplicates-toolbar d-flex align-items-center bg-body-tertiary rounded p-2 mb-3 gap-3 flex-wrap border">
-      <div class="fw-bold text-nowrap">Duplicate Detection</div>
+    <nav class="duplicates-toolbar d-flex align-items-center bg-dark border-bottom p-3 mb-3 gap-3 flex-wrap">
+      <div class="fw-bold text-nowrap text-uppercase letter-spacing-1 small opacity-75">Duplicates</div>
 
       <div class="d-flex gap-2 align-items-center flex-wrap flex-grow-1">
-        <select v-model="contentTypeFilter" aria-label="Content Type" class="form-select form-select-sm" style="width: auto;">
+        <select v-model="contentTypeFilter" class="form-select form-select-sm" style="width: 120px;">
           <option value="all">All Types</option>
-          <option value="image">Images Only</option>
-          <option value="video">Videos Only</option>
+          <option value="image">Images</option>
+          <option value="video">Videos</option>
         </select>
         
         <input 
           v-model="nameFilter" 
           type="search" 
-          placeholder="Filter by name..." 
-          aria-label="Filter by name" 
+          placeholder="Filter..." 
           class="form-control form-control-sm"
-          style="width: 200px;"
+          style="width: 180px;"
         />
 
-        <div class="d-flex flex-column" style="min-width: 150px;">
-          <label for="threshold" class="form-label mb-0 small text-muted">Diff: {{ thresholdLabel }}</label>
+        <div class="d-flex align-items-center gap-2 flex-grow-1 mx-2" style="max-width: 300px;">
+          <span class="small text-muted text-nowrap">Diff: {{ thresholdLabel }}</span>
           <input id="threshold" v-model.number="threshold" type="range" class="form-range" min="0" max="15" />
         </div>
       </div>
 
       <div class="d-flex gap-2">
-        <button @click="loadDuplicates" class="btn btn-sm btn-primary" :disabled="loading">Refresh</button>
-        <button @click="generatePhashes" class="btn btn-sm btn-outline-secondary">Gen Hashes</button>
+        <button @click="loadDuplicates" class="btn btn-sm btn-primary px-3" :disabled="loading">Scan</button>
+        <button @click="generatePhashes" class="btn btn-sm btn-outline-secondary px-3">Re-Hash</button>
       </div>
     </nav>
 
