@@ -1,6 +1,0 @@
-onlyBuiltDependencies:
-  - electron
-  - electron-winstaller
-  - ffmpeg-static
-  - sharp
-  - sqlite3
