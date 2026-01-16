@@ -67,22 +67,6 @@ body {
     margin-bottom: 10px;
 }
 
-.logo {
-    color: var(--primary);
-    font-weight: 700;
-    font-size: 1.4rem;
-    letter-spacing: -0.5px;
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-}
-
-.logo-version {
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    font-weight: 400;
-}
-
 .header-actions {
     display: flex;
     gap: 10px;

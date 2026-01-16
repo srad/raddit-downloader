@@ -1,22 +1,72 @@
+<template>
+  <div class="app-layout">
+    <TitleBar />
+    <!-- Header contains Logo, Actions and Search Bar -->
+    <header class="header">
+      <div class="header-top d-flex align-items-center justify-content-between">
+        <div class="d-flex align-items-center justify-content-end gap-2">
+          <div class="stat-item d-flex gap-2">
+            <span class="stat-label">Downloads:</span>
+            <span class="stat-value">{{ stats.count }}</span>
+          </div>
+          <div class="stat-item d-flex gap-2">
+            <span class="stat-label">Total Size:</span>
+            <span class="stat-value">{{ formatSize(stats.totalSize) }}</span>
+          </div>
+        </div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-outline-secondary" @click="openDataFolder">
+
+            <span>Open Folder</span>
+          </button>
+          <button class="btn btn-outline-secondary" @click="router.push('/duplicates')">Duplicates</button>
+          <button
+            class="btn btn-outline-secondary"
+            @click="logsVisible = !logsVisible"
+            :class="{ active: logsVisible }"
+          >
+            Logs
+          </button>
+        </div>
+      </div>
+
+      <SearchBar
+        @start="startDownload"
+        @stop="stopDownload"
+        :history="history"
+        :progress="progress"
+        :is-running="isRunning"
+      />
+    </header>
+
+    <div class="app-container">
+      <!-- Sidebar is BELOW the header -->
+      <aside class="sidebar">
+        <div class="sidebar-header">FILES</div>
+        <FileList path="" label="Downloads" :initial-load="true" />
+      </aside>
+
+      <!-- Main content is RIGHT of the sidebar -->
+      <main class="main-content">
+        <RouterView />
+
+        <LogPanel :logs="logs" :visible="logsVisible" :limit="100" />
+      </main>
+    </div>
+  </div>
+</template>
+
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import FileList from './components/FileList.vue';
 import { RouterView, useRouter } from 'vue-router';
 import { getApiBase } from './utils/config';
 import type { SearchPayload } from './components/SearchBar.vue';
 import SearchBar from './components/SearchBar.vue';
+import FileList from './components/FileList.vue';
 import LogPanel from './components/LogPanel.vue';
+import TitleBar from './components/TitleBar.vue';
 import { useSocket } from './composables/useSocket.ts';
 import { useThrottleFn } from '@vueuse/core';
-
-declare global {
-  interface Window {
-    appVersion?: string;
-    electronAPI?: {
-      openFolder: (path: string) => Promise<{ success: boolean; error?: string }>;
-    };
-  }
-}
 
 const { status, progress, logs, refreshSignal } = useSocket();
 const apiBase = getApiBase();
@@ -25,7 +75,6 @@ const router = useRouter();
 const isRunning = computed(() => status.value === 'running');
 const history = ref<string[]>([]);
 const logsVisible = ref(false);
-const version = ref(window.appVersion || '2.0.1');
 const stats = ref({ count: 0, totalSize: 0 });
 
 const formatSize = (bytes: number) => {
@@ -115,60 +164,6 @@ watch(status, (newStatus) => {
   if (newStatus === 'idle') fetchStatsThrottled();
 });
 </script>
-
-<template>
-  <div class="app-layout">
-    <!-- Header contains Logo, Actions and Search Bar -->
-    <header class="header">
-      <div class="header-top">
-        <div class="logo">
-          <span>Raddit Downloader</span>
-          <span class="logo-version">v{{ version }}</span>
-        </div>
-        <div class="header-actions">
-          <div class="stats-info me-3 d-flex align-items-center gap-3">
-            <div class="stat-item">
-              <span class="stat-label">Downloads:</span>
-              <span class="stat-value">{{ stats.count }}</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Total Size:</span>
-              <span class="stat-value">{{ formatSize(stats.totalSize) }}</span>
-            </div>
-          </div>
-          <button class="btn btn-outline-secondary" @click="openDataFolder">Open Folder</button>
-          <button class="btn btn-outline-secondary" @click="router.push('/duplicates')">Duplicates</button>
-          <button class="btn btn-outline-secondary" @click="logsVisible = !logsVisible" :class="{ active: logsVisible }">
-            Logs
-          </button>
-        </div>
-      </div>
-
-      <SearchBar
-        @start="startDownload"
-        @stop="stopDownload"
-        :history="history"
-        :progress="progress"
-        :is-running="isRunning"
-      />
-    </header>
-
-    <div class="app-container">
-      <!-- Sidebar is BELOW the header -->
-      <aside class="sidebar">
-        <div class="sidebar-header">FILES</div>
-        <FileList path="" label="Downloads" :initial-load="true" />
-      </aside>
-
-      <!-- Main content is RIGHT of the sidebar -->
-      <main class="main-content">
-        <RouterView />
-
-        <LogPanel :logs="logs" :visible="logsVisible" :limit="100" />
-      </main>
-    </div>
-  </div>
-</template>
 
 <style scoped>
 .app-layout {
