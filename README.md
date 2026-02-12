@@ -1,7 +1,8 @@
+<!--
 <p align="center">
   <img src="frontend/assets/logo.png" alt="RadditDownloader Logo" width="120" />
 </p>
-
+-->
 <h1 align="center">RadditDownloader</h1>
 
 <p align="center">
@@ -26,7 +27,7 @@
 ---
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/cccb85b3-bb57-4de9-9f3b-f650a5320dc6" alt="RadditDownloader Screenshot" width="900" />
+  <img alt="RadditDownloader Screenshot" width="900" alt="screenshot-1" src="https://github.com/user-attachments/assets/9fb5d610-6e80-46d7-9ac9-c42f6f016fd0" />
 </p>
 
 ---
