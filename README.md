@@ -1,29 +1,62 @@
-# RadditDownloader
+<p align="center">
+  <img src="frontend/assets/logo.png" alt="RadditDownloader Logo" width="120" />
+</p>
 
-A Reddit content crawler with CLI, web, and desktop interface for subreddits and user profiles.
+<h1 align="center">RadditDownloader</h1>
 
-Fork from [easy-reddit-downloader](https://github.com/josephrcox/easy-reddit-downloader) - almost entirely rewritten in TypeScript, dependency injection, and comprehensive testing.
+<p align="center">
+  <strong>A Reddit content crawler with CLI, web, and desktop interface for subreddits and user profiles.</strong>
+</p>
 
-This project is especially useful for gathering data for machine learning projects. Since also automatic thumbnails are generated for images and videos you can even directly use those.
+<p align="center">
+  <a href="https://github.com/srad/raddit-downloader/releases"><img src="https://img.shields.io/badge/version-2.0.1-blue?style=flat-square" alt="Version"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License"></a>
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="Platform"><br/>
+  <img src="https://img.shields.io/badge/TypeScript-5.9-blue?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Vue.js-3-4FC08D?style=flat-square&logo=vue.js&logoColor=white" alt="Vue.js">
+  <img src="https://img.shields.io/badge/Electron-33-47848F?style=flat-square&logo=electron&logoColor=white" alt="Electron">
+  <img src="https://img.shields.io/badge/tests-89%20passing-brightgreen?style=flat-square" alt="Tests">
+</p>
 
-![Test Coverage](https://img.shields.io/badge/tests-89%20passing-brightgreen)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+<p align="center">
+  Fork from <a href="https://github.com/josephrcox/easy-reddit-downloader">easy-reddit-downloader</a> - almost entirely rewritten in TypeScript, with dependency injection, and comprehensive testing.<br>
+  Especially useful for gathering data for machine learning projects, with automatic thumbnail generation for images and videos.
+</p>
+
+---
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/cccb85b3-bb57-4de9-9f3b-f650a5320dc6" alt="RadditDownloader Screenshot" width="900" />
+</p>
+
+---
+
+## Highlights
+
+- **Media Download** &mdash; Images (jpg, png, gif, webp), videos (mp4, webm), galleries, and text posts
+- **Smart Filtering** &mdash; Content-Type validation prevents invalid downloads (e.g., HTML error pages saved as images)
+- **Deduplication** &mdash; SQLite database tracks downloads, automatically skips existing files, and handles missing files
+- **Duplicate Detection** &mdash; Perceptual hash (pHash) based detection with multi-frame video analysis
+- **Web Gallery** &mdash; Real-time progress monitoring, thumbnail generation, file browsing, and management
+- **Desktop App** &mdash; Electron-based desktop version with system tray integration
+- **Type Safe** &mdash; Full TypeScript codebase with dependency injection and comprehensive unit tests
 
 ## Features
 
-- **Media Download:** Images (jpg, png, gif, webp), videos (mp4, webm), galleries, text posts
 - **Third-Party Support:** Gfycat, Imgur, YouTube (experimental), RedGifs
-- **Smart Filtering:** Content-Type validation prevents invalid downloads (HTML error pages saved as images)
-- **Deduplication:** SQLite database tracks downloads, automatic skip of existing files, redownload missing files
-- **Duplicate Detection:** Perceptual hash (pHash) based duplicate detection with multi-frame video analysis
-- **Web Gallery:** Real-time progress monitoring, thumbnail generation, file browsing, and file management
-- **Desktop App:** Electron-based desktop version with system tray integration
-- **Type Safe:** Full TypeScript with dependency injection and 89 unit tests
+- **Web Interface:** Real-time download progress, file browser with thumbnails, lightbox viewer, and log streaming
+- **Desktop Integration:** Runs as a standalone application with auto-assigned ports
+- **Portable Paths:** Stores relative paths for database portability
 
-## Screenshot
+## Tech Stack
 
-<img width="1586" height="911" alt="v2 0 1-screenshot" src="https://github.com/user-attachments/assets/cccb85b3-bb57-4de9-9f3b-f650a5320dc6" />
+| Layer | Technology |
+|-------|-----------|
+| **Runtime** | Node.js, Electron |
+| **Frontend** | Vue 3, Vite, TypeScript, SCSS |
+| **Backend** | TypeScript, SQLite |
+| **Build / Packaging** | [Electron Forge](https://www.electronforge.io/) |
+| **Libraries** | tsyringe (DI), sharp (Image processing), ffmpeg (Video processing) |
 
 ## Quick Start
 
@@ -52,8 +85,6 @@ npm start
 
 ```bash
 npm start              # Interactive CLI prompts
-npm run web           # Web interface at http://localhost:3000
-npm run desktop       # Desktop app (Electron)
 ```
 
 The CLI will ask you:
@@ -66,7 +97,7 @@ The CLI will ask you:
 ### Web Interface
 
 ```bash
-npm run web
+npm run web           # Web interface at http://localhost:3000
 ```
 
 Features:
@@ -74,28 +105,20 @@ Features:
 - File browser with thumbnails
 - Gallery lightbox viewer
 - Log streaming
-- Runs on `http://localhost:3000`
 
 ### Desktop App
 
 ```bash
-npm run desktop
-```
-
-### Create Installer
-
-```bash
-npm install
-npm run make
+npm run desktop       # Desktop app (Electron)
 ```
 
 Electron-based desktop version with auto-assigned ports to avoid conflicts.
 
-### Duplicate Detection
+## Duplicate Detection
 
-RadditDownloader uses perceptual hashing (pHash) to detect duplicate and similar media files:
+RadditDownloader uses perceptual hashing (pHash) to detect duplicate and similar media files.
 
-#### Finding Duplicates
+### Finding Duplicates
 
 **CLI Commands:**
 ```bash
@@ -121,7 +144,7 @@ POST http://localhost:3000/api/duplicates/generate
 DELETE http://localhost:3000/api/duplicates/:id
 ```
 
-#### How It Works
+### How It Works
 
 **For Images:**
 - Generates a single 64-bit perceptual hash per image
@@ -132,67 +155,64 @@ DELETE http://localhost:3000/api/duplicates/:id
 - Extracts 5 frames at 10%, 30%, 50%, 70%, and 90% of video duration
 - Generates phash for each frame
 - Uses voting system: duplicates if 3+ frames match (60% confidence)
-- Avoids false positives from identical intros/outros
-
-**Thresholds:**
-- `0-5 bits`: Near identical (recommended for duplicates)
-- `6-10 bits`: Similar with minor differences
-- `11+ bits`: Different files
-
-#### Automatic Background Processing
-
-- **On Download:** Phash generated automatically for every new download
-- **On Startup:** Missing phashes generated in background for existing files
-- **Real-time Progress:** Socket.IO events track generation progress in web UI
-
-#### Storage
-
-- Phashes stored in SQLite database (`data/data.db`)
-- Images: Single hex string (~16 bytes)
-- Videos: JSON array of 5 hashes (~80 bytes)
-- Indexed for fast duplicate detection queries
-
-## Configuration
-
-Edit `user_config.json` (created on first run):
-
-```json
-{
-  "use_history_database": true,          // Track and skip downloaded files
-  "redownload_posts": false,             // Force re-download existing posts
-  "prevent_duplicates": true,            // Use pHash for duplicate detection
-  "duplicate_threshold": 5,              // Stricter (lower) or looser (higher) match
-  "rate_limit_delay_ms": 1000,           // Delay between API requests
-  "download_youtube_videos_experimental": false  // Requires ffmpeg
-}
-```
-
-Filenames are automatically formatted as: `subreddit_YYYY-MM-DD_HH-MM-SS.ext`
 
 ## Development
 
-### Project Structure
+### Prerequisites
 
-```
-src/
-├── runners/              # Entry points (CLI, Web, Desktop)
-├── services/
-│   ├── download/         # Downloader strategies (Media, Gallery, RedGifs, YouTube)
-│   ├── DownloadOrchestrator.ts
-│   ├── DatabaseService.ts
-│   ├── ThumbnailService.ts
-│   ├── PhashService.ts   # Perceptual hash generation and duplicate detection
-│   └── FileSystemService.ts
-├── utils/                # Helpers (filename, post detection)
-├── types/
-│   ├── index.ts          # Core TypeScript interfaces
-│   └── phash.ts          # Duplicate detection types
-└── types.ts             # TypeScript interfaces
+- **Node.js** (v18 or higher recommended)
+- **npm** (comes with Node.js)
 
-__tests__/               # Jest unit tests
-public/                  # Web UI assets
-data/                    # Runtime files (database, downloads, thumbnails)
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/srad/raddit-downloader.git
+cd raddit-downloader
 ```
+
+### 2. Install Dependencies
+
+Install all project dependencies (including devDependencies for Electron and testing):
+
+```bash
+npm install
+```
+
+### 3. Run in Development Mode
+
+You can run the application in different modes during development:
+
+**CLI Mode (Interactive):**
+```bash
+npm start
+```
+
+**Web Interface:**
+Starts the backend server and web UI at `http://localhost:3000`.
+```bash
+npm run web
+```
+
+**Desktop App (Electron):**
+Builds the frontend and launches the Electron desktop application.
+```bash
+npm run desktop
+```
+
+### 4. Build and Package
+
+This project uses [Electron Forge](https://www.electronforge.io/) to package the application.
+
+**Create Distributables:**
+This command compiles the TypeScript code, builds the Vue frontend, and packages the app for your current platform (e.g., `.exe` for Windows, `.deb`/`.rpm` for Linux).
+
+```bash
+npm run make
+```
+
+The output files will be located in the `out/` directory:
+- **Windows:** `out/make/squirrel.windows/x64/`
+- **Linux:** `out/make/deb/x64/` or `out/make/rpm/x64/`
 
 ### Running Tests
 
@@ -204,13 +224,13 @@ npm run test:watch               # Watch mode
 npm run test:coverage            # Coverage report
 ```
 
-### Key Architecture
+### Packaging for Distribution
 
-- **Strategy Pattern:** Each downloader (`MediaDownloader`, `GalleryDownloader`, etc.) handles specific post types
-- **Dependency Injection:** Uses `tsyringe` for testability and modularity
-- **Content-Type Validation:** Prevents HTML error pages from being saved as images
-- **Database Migrations:** Automatic schema updates on version changes
-- **Portable Paths:** Stores relative paths (`r_pics/file.jpg`) for portability
+Use Electron Forge to create platform-specific distributables (exe, deb, rpm, zip):
+
+```bash
+npm run make
+```
 
 ### Adding a New Downloader
 
@@ -218,7 +238,6 @@ npm run test:coverage            # Coverage report
 2. Register in `src/services/download/index.ts`
 3. Add tests in `__tests__/`
 
-Example:
 ```typescript
 @injectable()
 export class MyDownloader implements Downloader {
@@ -232,41 +251,6 @@ export class MyDownloader implements Downloader {
 }
 ```
 
-## Technical Details
-
-### Reddit API
-
-- **No Authentication Required:** Uses public JSON API (`https://reddit.com/r/{subreddit}.json`)
-- **Rate Limiting:** Respects `X-Ratelimit-*` headers with exponential backoff
-- **User-Agent:** Custom UA to avoid 429 errors
-
-### Download Strategy
-
-1. **Post Type Detection:** Analyzes `post_hint`, `domain`, and metadata
-2. **URL Extraction:** Prioritizes highest quality sources:
-   - `media.reddit_video.fallback_url` (full quality video)
-   - `preview.images[0].source.url` (full resolution image)
-   - `url_overridden_by_dest` (external media)
-3. **Content Validation:** Checks `Content-Type` header before saving
-4. **Error Handling:** Logs failures but continues batch processing
-
-### File Storage
-
-- **Database:** SQLite in `data/data.db` with relative paths and phashes
-- **Downloads:** Organized by subreddit in `data/downloads/r_{subreddit}/`
-- **Thumbnails:** Auto-generated in `data/thumbnails/` using Sharp and FFmpeg
-- **Deduplication:** Tracks by Reddit post ID and perceptual hash, skips if file exists
-
-## Troubleshooting
-
-**403 Errors:** Some CDNs block downloads. The app uses browser-like headers with proper `Referer` and `User-Agent`.
-
-**HTML files saved as images:** Fixed in v1.0+ with Content-Type validation. Update to latest version.
-
-**YouTube downloads fail:** Set `download_youtube_videos_experimental: true` and install ffmpeg.
-
-**Port already in use:** Web interface auto-selects available ports. Desktop app uses dynamic port assignment.
-
 ## Contributing
 
 1. Fork the repository
@@ -279,9 +263,9 @@ export class MyDownloader implements Downloader {
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details
+[MIT License](LICENSE)
 
 ## Credits
 
 Original project by [Joseph R. Cox](https://github.com/josephrcox/easy-reddit-downloader)
-This fork for by [srad](https://github.com/srad)
+This fork by [srad](https://github.com/srad)
