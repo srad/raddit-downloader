@@ -1,45 +1,94 @@
 const { version } = require('./package.json');
 
-module.exports = {
-    packagerConfig: {
-        asar: false, // Keep FALSE to see errors
-        ignore: [
-            /^\/data/,
-            /^\/out/,
-            /^\/src/,
-            /^\/\.git/,
-            /^\/__tests__/,
-            /\/nul$/
-        ]
+const makers = [
+  // Windows: Squirrel Installer
+  {
+    name: '@electron-forge/maker-squirrel',
+    platforms: ['win32'],
+    config: {
+      authors: 'srad',
+      description: 'A Reddit post downloader and gallery viewer.',
+      name: 'radditdownloader',
+      exe: 'raddit-downloader.exe',
+      setupExe: `RadditDownloader-${version}-Installer.exe`
     },
-    rebuildConfig: {},
-    makers: [
-        {
-            name: '@electron-forge/maker-squirrel',
-            config: {
-                // Squirrel needs these explicitly to avoid the FileStream error
-                authors: 'srad',
-                description: 'A Reddit post downloader and gallery viewer.',
-                name: 'radditdownloader', // Keep this lowercase, no spaces,
-                setupExe: `RadditDownloader-${version}-Installer.exe`
-            },
-        },
-        {
-            // We add 'win32' here so you get a simple ZIP file too
-            // This is much faster to debug than the Setup.exe
-            name: '@electron-forge/maker-zip',
-            platforms: ['darwin', 'win32'],
-        },
-        {
-            name: '@electron-forge/maker-deb',
-            config: {},
-        },
-        {
-            name: '@electron-forge/maker-rpm',
-            config: {},
-        },
-    ],
-    plugins: [
-        // Plugins commented out as per your setup
-    ],
+  },
+  // Multi-platform: Zip
+  {
+    name: '@electron-forge/maker-zip',
+    platforms: ['darwin', 'win32', 'linux'],
+  }
+];
+
+// Only load Linux makers when running on Linux to prevent load-time crashes on Windows/macOS
+if (process.platform === 'linux') {
+  makers.push(
+    {
+      name: '@electron-forge/maker-deb',
+      platforms: ['linux'],
+      config: {
+        options: {
+          maintainer: 'srad',
+          homepage: 'https://github.com/srad/raddit-downloader',
+          categories: ['Utility', 'Network'],
+          description: 'A Reddit content crawler with CLI, web, and desktop interface.',
+          productName: 'RadditDownloader',
+          genericName: 'Reddit Downloader'
+        }
+      },
+    },
+    {
+      name: '@electron-forge/maker-rpm',
+      platforms: ['linux'],
+      config: {
+        options: {
+          maintainer: 'srad',
+          homepage: 'https://github.com/srad/raddit-downloader',
+          categories: ['Utility', 'Network'],
+          description: 'A Reddit content crawler with CLI, web, and desktop interface.',
+          productName: 'RadditDownloader',
+          genericName: 'Reddit Downloader'
+        }
+      },
+    },
+    /*
+    {
+      name: 'electron-forge-maker-appimage',
+      platforms: ['linux'],
+      config: {
+        options: {
+          maintainer: 'srad',
+          homepage: 'https://github.com/srad/raddit-downloader',
+          categories: ['Utility', 'Network'],
+          description: 'A Reddit content crawler with CLI, web, and desktop interface.',
+          productName: 'RadditDownloader',
+          genericName: 'Reddit Downloader'
+        }
+      },
+    }
+    */
+  );
+}
+
+module.exports = {
+  packagerConfig: {
+    asar: false, // Keep FALSE to see errors during development
+    icon: './frontend/assets/logo', // Icon path (omit extension to support .ico, .icns, .png)
+    executableName: 'raddit-downloader',
+    ignore: [
+      /^\/data/,
+      /^\/out/,
+      /^\/src/,
+      /^\/\.git/,
+      /^\/\.github/,
+      /^\/\.idea/,
+      /^\/__tests__/,
+      /\/nul$/
+    ]
+  },
+  rebuildConfig: {},
+  makers: makers,
+  plugins: [
+    // Plugins commented out as per your setup
+  ],
 };

@@ -1,8 +1,7 @@
-<!--
 <p align="center">
   <img src="frontend/assets/logo.png" alt="RadditDownloader Logo" width="120" />
 </p>
--->
+
 <h1 align="center">RadditDownloader</h1>
 
 <p align="center">
