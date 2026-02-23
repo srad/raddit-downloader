@@ -10,14 +10,14 @@ const makers = [
       description: 'A Reddit post downloader and gallery viewer.',
       name: 'radditdownloader',
       exe: 'raddit-downloader.exe',
-      setupExe: `RadditDownloader-${version}-Installer.exe`
+      setupExe: `RadditDownloader-${version}-Installer.exe`,
     },
   },
-  // Multi-platform: Zip
-  // {
-  //   name: '@electron-forge/maker-zip',
-  //   platforms: ['darwin', 'win32', 'linux'],
-  // }
+  // macOS: Zip
+  {
+    name: '@electron-forge/maker-zip',
+    platforms: ['darwin'],
+  },
 ];
 
 // Only load Linux makers when running on Linux to prevent load-time crashes on Windows/macOS
@@ -33,8 +33,8 @@ if (process.platform === 'linux') {
           categories: ['Utility', 'Network'],
           description: 'A Reddit content crawler with CLI, web, and desktop interface.',
           productName: 'RadditDownloader',
-          genericName: 'Reddit Downloader'
-        }
+          genericName: 'Reddit Downloader',
+        },
       },
     },
     {
@@ -47,8 +47,8 @@ if (process.platform === 'linux') {
           categories: ['Utility', 'Network'],
           description: 'A Reddit content crawler with CLI, web, and desktop interface.',
           productName: 'RadditDownloader',
-          genericName: 'Reddit Downloader'
-        }
+          genericName: 'Reddit Downloader',
+        },
       },
     },
     /*
@@ -75,16 +75,7 @@ module.exports = {
     asar: false, // Keep FALSE to see errors during development
     icon: './frontend/assets/logo', // Icon path (omit extension to support .ico, .icns, .png)
     executableName: 'raddit-downloader',
-    ignore: [
-      /^\/data/,
-      /^\/out/,
-      /^\/src/,
-      /^\/\.git/,
-      /^\/\.github/,
-      /^\/\.idea/,
-      /^\/__tests__/,
-      /\/nul$/
-    ]
+    ignore: [/^\/data/, /^\/out/, /^\/src/, /^\/\.git/, /^\/\.github/, /^\/\.idea/, /^\/__tests__/, /\/nul$/],
   },
   rebuildConfig: {},
   makers: makers,
