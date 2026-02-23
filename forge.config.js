@@ -14,10 +14,10 @@ const makers = [
     },
   },
   // Multi-platform: Zip
-  {
-    name: '@electron-forge/maker-zip',
-    platforms: ['darwin', 'win32', 'linux'],
-  }
+  // {
+  //   name: '@electron-forge/maker-zip',
+  //   platforms: ['darwin', 'win32', 'linux'],
+  // }
 ];
 
 // Only load Linux makers when running on Linux to prevent load-time crashes on Windows/macOS

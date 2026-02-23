@@ -57,10 +57,15 @@ export class GalleryDownloader implements Downloader {
         continue;
       }
 
-      // Construct a fake mini-post to reuse MediaDownloader logic
+      // Construct a fake mini-post to reuse MediaDownloader logic.
+      // Clear url_overridden_by_dest, media, and preview so that getMediaDownloadInfo
+      // uses the direct downloadUrl without being overridden by the original gallery post's fields.
       const miniPost = {
         ...post,
         url: downloadUrl,
+        url_overridden_by_dest: undefined,
+        media: undefined,
+        preview: undefined,
         post_hint: postHint,
       } as RedditPost;
 
