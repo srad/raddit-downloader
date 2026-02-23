@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useDebounceFn, useInfiniteScroll } from '@vueuse/core';
 import DuplicateGroup from './DuplicateGroup.vue';
 import { useSocket } from '../composables/useSocket';
@@ -8,6 +9,7 @@ import LightBox from './LightBox.vue';
 import type { FileItem } from '../types';
 
 interface DuplicateGroupData {
+  id: string; // Internal unique ID for Vue keys
   type: string;
   confidence?: number;
   files: FileItem[];
@@ -24,7 +26,7 @@ interface PhashProgress {
 }
 
 interface DuplicatesResponse {
-  groups: DuplicateGroupData[];
+  groups: any[];
   totalGroups: number;
   totalDuplicates: number;
 }
@@ -32,6 +34,8 @@ interface DuplicatesResponse {
 // --- Composables ---
 const { socket } = useSocket();
 const apiBase = getApiBase();
+const route = useRoute();
+const router = useRouter();
 
 // --- State ---
 const loading = ref(false);
@@ -43,8 +47,7 @@ const scanProgress = ref({
 });
 
 const duplicateGroups = ref<DuplicateGroupData[]>([]);
-const totalGroups = ref(0);
-const totalDuplicates = ref(0);
+const selectedPaths = ref(new Set<string>());
 
 // Filters
 const threshold = ref(5);
@@ -74,15 +77,15 @@ const phashProgress = ref<PhashProgress>({
 // --- Computed ---
 const thresholdLabel = computed(() => `${threshold.value} bits`);
 
+const currentPathFilter = computed(() => (route.query.path as string) || null);
+
 const filteredGroups = computed(() => {
   return duplicateGroups.value.filter((group) => {
-    // Content type filter
     if (contentTypeFilter.value !== 'all') {
       const matchesType = group.type === contentTypeFilter.value || group.type === 'mixed';
       if (!matchesType) return false;
     }
 
-    // Name filter
     if (nameFilter.value) {
       const searchLower = nameFilter.value.toLowerCase();
       const hasMatch = group.files.some((file) => file.filename.toLowerCase().includes(searchLower));
@@ -91,6 +94,10 @@ const filteredGroups = computed(() => {
 
     return true;
   });
+});
+
+const totalDuplicatesCount = computed(() => {
+  return filteredGroups.value.reduce((sum, g) => sum + g.files.length, 0);
 });
 
 const visibleGroups = computed(() => {
@@ -103,7 +110,7 @@ const loadMore = async () => {
   if (visibleLimit.value >= filteredGroups.value.length) return;
 
   isLoadingMore.value = true;
-  await new Promise((r) => setTimeout(r, 50)); // Small delay to allow UI to breathe
+  await new Promise((r) => setTimeout(r, 50));
   visibleLimit.value += 20;
   await nextTick();
   isLoadingMore.value = false;
@@ -120,22 +127,27 @@ const cancelScan = async () => {
 };
 
 const loadDuplicates = async () => {
-  if (loading.value) return; // Prevent double trigger
+  if (loading.value) return;
   loading.value = true;
   scanProgress.value = { show: true, processed: 0, total: 0, percentage: 0 };
-  visibleLimit.value = 20; // Reset pagination on reload
+  visibleLimit.value = 20;
+  selectedPaths.value.clear();
   
   try {
-    const response = await fetch(`${apiBase}/api/duplicates?threshold=${threshold.value}`);
-    if (response.status === 499) {
-      console.log('Scan cancelled');
-      return;
+    let url = `${apiBase}/api/duplicates?threshold=${threshold.value}`;
+    if (currentPathFilter.value) {
+      url += `&path=${encodeURIComponent(currentPathFilter.value)}`;
     }
+    
+    const response = await fetch(url);
+    if (response.status === 499) return;
     const data: DuplicatesResponse = await response.json();
 
-    duplicateGroups.value = data.groups || [];
-    totalGroups.value = data.totalGroups || 0;
-    totalDuplicates.value = data.totalDuplicates || 0;
+    duplicateGroups.value = (data.groups || []).map((g, idx) => ({
+      ...g,
+      // Create a unique ID for this group based on file IDs
+      id: g.files.map((f: any) => f.id).sort().join('-') || `group-${idx}-${Date.now()}`
+    }));
   } catch (error) {
     console.error('Failed to load duplicates:', error);
     alert('Failed to load duplicates');
@@ -144,12 +156,16 @@ const loadDuplicates = async () => {
     scanProgress.value.show = false;
   }
 };
-
 const debouncedLoadDuplicates = useDebounceFn(loadDuplicates, 500);
 
 const generatePhashes = async () => {
   try {
-    const response = await fetch(`${apiBase}/api/generate-phash`, { method: 'POST' });
+    const body = currentPathFilter.value ? { path: currentPathFilter.value } : {};
+    const response = await fetch(`${apiBase}/api/generate-phash`, { 
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
     const data = await response.json();
 
     if (data.status === 'completed' && data.total === 0) {
@@ -161,8 +177,13 @@ const generatePhashes = async () => {
   }
 };
 
-const deleteFile = async (fileId: string | number, groupIndex: number) => {
-  if (!confirm('Permanently delete this file?')) return;
+const deleteFile = async (fileId: string | number, groupId: string) => {
+  const groupIndex = duplicateGroups.value.findIndex(g => g.id === groupId);
+  const group = duplicateGroups.value[groupIndex];
+  const file = group?.files.find(f => f.id === fileId);
+  if (!file) return;
+
+  if (!confirm(`Permanently delete "${file.filename}"?`)) return;
 
   try {
     const response = await fetch(`${apiBase}/api/delete-duplicate/${fileId}`, {
@@ -171,17 +192,15 @@ const deleteFile = async (fileId: string | number, groupIndex: number) => {
     const data = await response.json();
 
     if (data.success) {
-      // Remove file from group locally to avoid full reload
-      const group = duplicateGroups.value[groupIndex];
+      // IMMEDIATE REMOVAL FROM STATE
       if (group) {
         group.files = group.files.filter((f) => f.id !== fileId);
+        selectedPaths.value.delete(file.path);
 
-        // Remove group if it has less than 2 files
+        // Remove the whole group if it no longer represents a duplicate pair
         if (group.files.length < 2) {
           duplicateGroups.value.splice(groupIndex, 1);
-          totalGroups.value--;
         }
-        totalDuplicates.value--;
       }
     } else {
       alert('Failed to delete file');
@@ -192,9 +211,53 @@ const deleteFile = async (fileId: string | number, groupIndex: number) => {
   }
 };
 
+const toggleSelection = (path: string) => {
+  if (selectedPaths.value.has(path)) {
+    selectedPaths.value.delete(path);
+  } else {
+    selectedPaths.value.add(path);
+  }
+};
+
+const selectDuplicates = () => {
+  duplicateGroups.value.forEach(group => {
+    group.files.slice(1).forEach(file => {
+      selectedPaths.value.add(file.path);
+    });
+  });
+};
+
+const deleteSelected = async () => {
+  if (selectedPaths.value.size === 0) return;
+  if (!confirm(`Permanently delete ${selectedPaths.value.size} selected items?`)) return;
+
+  try {
+    const response = await fetch(`${apiBase}/api/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ files: Array.from(selectedPaths.value) }),
+    });
+    const data = await response.json();
+
+    if (data.success) {
+      // Reload to ensure state is clean
+      loadDuplicates();
+    } else {
+      alert('Failed to delete files');
+    }
+  } catch (error) {
+    console.error('Bulk delete failed:', error);
+    alert('Delete failed');
+  }
+};
+
+const clearPathFilter = () => {
+  router.push('/duplicates');
+};
+
 // Lightbox Logic
-const openImageInLightbox = (groupIndex: number, fileIndex: number) => {
-  currentGroupIndex.value = groupIndex;
+const openImageInLightbox = (groupId: string, fileIndex: number) => {
+  currentGroupIndex.value = filteredGroups.value.findIndex(g => g.id === groupId);
   lightboxIndex.value = fileIndex;
   lightboxOpen.value = true;
 };
@@ -217,7 +280,6 @@ const nextImage = () => {
     lightboxIndex.value++;
   }
 };
-
 // --- Lifecycle ---
 onMounted(() => {
   loadDuplicates();
@@ -268,6 +330,10 @@ watch(threshold, () => {
   debouncedLoadDuplicates();
 });
 
+watch(() => route.query.path, () => {
+  loadDuplicates();
+});
+
 useInfiniteScroll(
   scrollContainer,
   () => {
@@ -276,10 +342,16 @@ useInfiniteScroll(
   { distance: 400 },
 );
 </script>
-
 <template>
   <main class="duplicates-container d-flex flex-column h-100 p-2 overflow-hidden">
-    <!-- Phash Progress Banner -->
+    <div v-if="currentPathFilter" class="alert alert-secondary d-flex align-items-center justify-content-between py-2 px-3 mb-2 border-0">
+      <div class="small d-flex align-items-center gap-2">
+        <span class="opacity-75">Filtering folder:</span>
+        <strong class="text-primary">{{ currentPathFilter }}</strong>
+      </div>
+      <button class="btn btn-link btn-sm p-0 text-decoration-none" @click="clearPathFilter">&times; Clear filter</button>
+    </div>
+
     <div v-if="phashProgress.show" class="phash-banner alert alert-primary d-flex flex-column align-items-stretch mb-3 bg-gradient text-white border-0 py-2">
       <div class="d-flex align-items-center gap-2 mb-2">
         <span v-if="phashProgress.status === 'processing'" class="spinner-border spinner-border-sm" role="status"></span>
@@ -295,7 +367,7 @@ useInfiniteScroll(
         <div 
           class="progress-bar bg-white" 
           role="progressbar" 
-          :style="{ width: (phashProgress.processed / phashProgress.total * 100) + '%' }"
+          :style="{ width: (phashProgress.total > 0 ? (phashProgress.processed / phashProgress.total * 100) : 0) + '%' }"
           :aria-valuenow="phashProgress.processed" 
           :aria-valuemin="0" 
           :aria-valuemax="phashProgress.total"
@@ -303,7 +375,6 @@ useInfiniteScroll(
       </div>
     </div>
 
-    <!-- Toolbar -->
     <nav class="duplicates-toolbar d-flex align-items-center bg-dark border-bottom p-3 mb-3 gap-3 flex-wrap">
       <div class="fw-bold text-nowrap text-uppercase letter-spacing-1 small opacity-75">Duplicates</div>
 
@@ -329,14 +400,18 @@ useInfiniteScroll(
       </div>
 
       <div class="d-flex gap-2">
+        <template v-if="selectedPaths.size > 0">
+          <button @click="deleteSelected" class="btn btn-sm btn-danger px-3">Delete Selected ({{ selectedPaths.size }})</button>
+        </template>
+        <template v-else>
+          <button @click="selectDuplicates" class="btn btn-sm btn-outline-primary" v-if="filteredGroups.length > 0">Select Duplicates</button>
+        </template>
         <button @click="loadDuplicates" class="btn btn-sm btn-primary px-3" :disabled="loading">Scan</button>
         <button @click="generatePhashes" class="btn btn-sm btn-outline-secondary px-3">Re-Hash</button>
       </div>
     </nav>
 
-    <!-- Scroll Area -->
     <div class="duplicates-scroll-area flex-grow-1 overflow-auto position-relative" ref="scrollContainer">
-      <!-- Analysis Progress -->
       <div v-if="loading" class="alert alert-info d-flex flex-column gap-2 m-2">
         <div class="d-flex align-items-center justify-content-between">
           <div class="d-flex align-items-center gap-2">
@@ -361,41 +436,34 @@ useInfiniteScroll(
       </div>
 
       <template v-else>
-        <!-- Summary -->
-        <div v-if="totalGroups > 0" class="px-2 mb-2 text-muted small">
-          Found <strong>{{ filteredGroups.length }}</strong> groups with <strong>{{ totalDuplicates }}</strong> files
-          <span v-if="filteredGroups.length !== totalGroups" class="fst-italic">
-            ({{ totalGroups - filteredGroups.length }} filtered out)
-          </span>
+        <div v-if="filteredGroups.length > 0" class="px-2 mb-2 text-muted small">
+          Found <strong>{{ filteredGroups.length }}</strong> groups with <strong>{{ totalDuplicatesCount }}</strong> files
         </div>
 
-        <!-- Empty State -->
-        <div v-if="totalGroups === 0" class="text-center p-5 text-muted">
+        <div v-if="duplicateGroups.length === 0" class="text-center p-5 text-muted">
           <h3 class="h5 mt-3">No Duplicates Found</h3>
           <p class="small">Try adjusting the similarity threshold or generate phashes for existing files.</p>
         </div>
 
-        <!-- Grid -->
         <div v-else class="duplicates-grid d-flex flex-column gap-3">
           <DuplicateGroup
-            v-for="(group, groupIndex) in visibleGroups"
-            :key="groupIndex"
+            v-for="group in visibleGroups"
+            :key="group.id"
             :group="group"
-            :group-index="groupIndex"
+            :selected-paths="selectedPaths"
             @open-lightbox="openImageInLightbox"
             @delete-file="deleteFile"
+            @toggle-selection="toggleSelection"
           />
         </div>
       </template>
 
-      <!-- Loader -->
       <div v-if="visibleGroups.length < filteredGroups.length" class="text-center p-3 text-muted">
         <span class="spinner-border spinner-border-sm me-2" role="status"></span>
         <span class="small">Loading more...</span>
       </div>
     </div>
 
-    <!-- Lightbox -->
     <LightBox
       v-if="filteredGroups && lightboxOpen && currentGroupIndex >= 0"
       :index="lightboxIndex"
@@ -410,9 +478,7 @@ useInfiniteScroll(
 </template>
 
 <style scoped>
-/* Custom overrides where bootstrap util classes aren't enough */
 .phash-banner {
-  /* Keep the custom gradient look but integrated with Bootstrap alert structure */
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 </style>

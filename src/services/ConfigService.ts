@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { Config } from '../types';
+import { Config, ValidationResult } from '../types';
 import { injectable, inject } from 'tsyringe';
 import { DatabaseService } from './DatabaseService';
 
@@ -29,17 +29,9 @@ export const defaultConfig: Config = {
   download_youtube_videos_experimental: true,
 };
 
-export interface ValidationResult {
-  valid: boolean;
-  warnings: string[];
-  errors: string[];
-}
-
 @injectable()
 export class ConfigService {
-  constructor(
-    @inject(DatabaseService) private dbService: DatabaseService
-  ) {}
+  constructor(@inject(DatabaseService) private dbService: DatabaseService) {}
 
   public static load(): Config {
     return { ...defaultConfig };
@@ -57,10 +49,10 @@ export class ConfigService {
 
     // Merge DB settings into default config
     const config = { ...defaultConfig };
-    
+
     for (const [key, value] of Object.entries(dbSettings)) {
       try {
-        const parsedValue = JSON.parse(value);
+        const parsedValue = JSON.parse(value as string);
         (config as any)[key] = parsedValue;
       } catch (e) {
         (config as any)[key] = value;
@@ -82,11 +74,21 @@ export class ConfigService {
     const errors: string[] = [];
 
     // Base validation for settings if needed
-    
+
     return {
       valid: errors.length === 0,
       warnings,
       errors,
     };
+  }
+
+  /**
+   * Parse a post list content (lines of URLs)
+   */
+  public static parsePostListContent(content: string): string[] {
+    return content
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith('#'));
   }
 }

@@ -89,35 +89,27 @@ describe('DownloadOrchestrator', () => {
     } as any;
 
     mockDownloadManager = {
-      download: jest.fn().mockResolvedValue(true),
+      download: jest.fn().mockResolvedValue({ downloaded: true }),
     } as any;
 
     mockLogger = {
       log: jest.fn(),
     };
 
-    orchestrator = new DownloadOrchestrator(
-      mockConfig,
-      mockState,
-      mockApiService,
-      mockFsService,
-      mockDownloadManager
-    );
+    orchestrator = new DownloadOrchestrator(mockConfig, mockState, mockApiService, mockFsService, mockDownloadManager);
   });
 
   describe('downloadPost', () => {
     it('should download a post to the correct directory', async () => {
       await orchestrator.downloadPost(mockPost, mockLogger);
 
-      expect(mockFsService.ensureDirectoryExists).toHaveBeenCalledWith(
-        '/downloads/r_pics'
-      );
+      expect(mockFsService.ensureDirectoryExists).toHaveBeenCalledWith('/downloads/r_pics');
       // mockPost.created = 1234567890 => 2009-02-13 23:31:30 UTC
       expect(mockDownloadManager.download).toHaveBeenCalledWith(
         mockPost,
         '/downloads/r_pics',
         expect.stringMatching(/^pics_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/),
-        'pics' // Source parameter (subreddit name)
+        'pics', // Source parameter (subreddit name)
       );
     });
 
@@ -126,9 +118,7 @@ describe('DownloadOrchestrator', () => {
 
       await orchestrator.downloadPost(mockPost, mockLogger);
 
-      expect(mockFsService.ensureDirectoryExists).toHaveBeenCalledWith(
-        '/downloads/u_testuser'
-      );
+      expect(mockFsService.ensureDirectoryExists).toHaveBeenCalledWith('/downloads/u_testuser');
     });
   });
 
@@ -138,14 +128,7 @@ describe('DownloadOrchestrator', () => {
 
       await orchestrator.downloadBatch({ target: 'pics', logger: mockLogger, options: {} });
 
-      expect(mockApiService.fetchSubredditPosts).toHaveBeenCalledWith(
-        'pics',
-        'top',
-        'all',
-        10,
-        '',
-        undefined
-      );
+      expect(mockApiService.fetchSubredditPosts).toHaveBeenCalledWith('pics', 'top', 'all', 10, '', undefined);
       expect(mockDownloadManager.download).toHaveBeenCalledTimes(1);
       expect(mockState.downloadedPosts.media).toBe(1);
     });
@@ -155,28 +138,16 @@ describe('DownloadOrchestrator', () => {
 
       await orchestrator.downloadBatch({ target: 'pics', logger: mockLogger, options: {} });
 
-      expect(mockApiService.fetchSubredditPosts).toHaveBeenCalledWith(
-        'pics',
-        'top',
-        'all',
-        5,
-        '',
-        undefined
-      );
+      expect(mockApiService.fetchSubredditPosts).toHaveBeenCalledWith('pics', 'top', 'all', 5, '', undefined);
     });
 
     it('should handle download failures gracefully', async () => {
-      mockDownloadManager.download.mockRejectedValueOnce(
-        new Error('Download failed')
-      );
+      mockDownloadManager.download.mockRejectedValueOnce(new Error('Download failed'));
 
       await orchestrator.downloadBatch({ target: 'pics', logger: mockLogger, options: {} });
 
       expect(mockState.downloadedPosts.failed).toBe(1);
-      expect(mockLogger.log).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to download post'),
-        true
-      );
+      expect(mockLogger.log).toHaveBeenCalledWith(expect.stringContaining('Failed to download post'), true);
     });
 
     it('should handle abort signals', async () => {
@@ -188,7 +159,7 @@ describe('DownloadOrchestrator', () => {
           target: 'pics',
           logger: mockLogger,
           options: { signal: abortController.signal },
-        })
+        }),
       ).rejects.toThrow('Aborted');
     });
 
@@ -202,12 +173,7 @@ describe('DownloadOrchestrator', () => {
 
       await orchestrator.downloadBatch({ target: 'user/testuser', logger: mockLogger, options: {} });
 
-      expect(mockApiService.fetchUserPosts).toHaveBeenCalledWith(
-        'testuser',
-        10,
-        '',
-        undefined
-      );
+      expect(mockApiService.fetchUserPosts).toHaveBeenCalledWith('testuser', 10, '', undefined);
     });
   });
 });

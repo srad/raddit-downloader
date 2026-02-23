@@ -2,9 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import chalk from 'chalk';
 import { injectable, inject } from 'tsyringe';
-import { Config as ConfigType } from '../types';
+import { Config as ConfigType, ValidationResult } from '../types';
 import { ALL_POSTS as ALL_POSTS_CONST, DATA_DIR } from '../config/constants';
-import { ValidationResult } from './ConfigService';
 import { CONFIG_TOKEN } from '../config/tokens';
 
 @injectable()
@@ -16,8 +15,8 @@ export class LoggerService {
 
   constructor(@inject(CONFIG_TOKEN) private config: ConfigType) {
     const date = new Date();
-    this.dateString = `${date.getFullYear()} ${ 
-      date.getMonth() + 1 
+    this.dateString = `${date.getFullYear()} ${
+      date.getMonth() + 1
     } ${date.getDate()} at ${date.getHours()}-${date.getMinutes()}-${date.getSeconds()}`;
   }
 
@@ -82,7 +81,10 @@ export class LoggerService {
     console.clear();
     this.log(chalk.cyan('👋 Welcome to the easiest & most customizable Reddit Post Downloader!'), false);
     this.log(chalk.yellow('😎 Contribute @ https://github.com/srad/raddit-downloader'), false);
-    this.log(chalk.blue('🤔 Confused? Check out the README @ https://github.com/srad/raddit-downloader#readme\n'), false);
+    this.log(
+      chalk.blue('🤔 Confused? Check out the README @ https://github.com/srad/raddit-downloader#readme\n'),
+      false,
+    );
   }
 
   public logValidation(validation: ValidationResult): void {

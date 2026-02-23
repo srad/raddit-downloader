@@ -1,7 +1,7 @@
 {
   "name": "raddit-downloader",
   "productName": "RadditDownloader",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "description": "A Reddit post downloader and gallery viewer.",
   "main": "dist/electron/main.js",
   "scripts": {

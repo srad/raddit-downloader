@@ -15,7 +15,9 @@
             <span class="visually-hidden">Loading...</span>
         </div>
         <span class="folder-label text-truncate">{{ folder.filename }} ({{ folder.fileCount }})</span>
-        <span class="folder-delete" @click.stop="deleteFolder(folder.path)" title="Delete Folder">&times;</span>
+        <div class="folder-actions">
+            <span class="folder-action delete-btn" @click.stop="deleteFolder(folder.path)" title="Delete Folder">&times;</span>
+        </div>
     </div>
   </div>
 </template>
@@ -51,12 +53,10 @@ const currentDownloadingFolder = ref<string | null>(null);
 // Listen for new items to update folder counts
 if (socket) {
   socket.on('progress', (data: any) => {
-    // data.folder is like "r_pics"
     currentDownloadingFolder.value = data.folder;
   });
 
   socket.on('new_item', (item: any) => {
-    // item.path is "r_pics/image.jpg"
     const lastSlashIndex = item.path.lastIndexOf('/');
     const itemDir = lastSlashIndex !== -1 ? item.path.substring(0, lastSlashIndex) : '';
     
@@ -67,8 +67,6 @@ if (socket) {
   });
 
   socket.on('new_folder', (folder: FolderItem) => {
-    // folder.path is "r_pics"
-    // props.path is "" (for root)
     const lastSlashIndex = folder.path.lastIndexOf('/');
     const parentDir = lastSlashIndex !== -1 ? folder.path.substring(0, lastSlashIndex) : '';
     
@@ -76,7 +74,6 @@ if (socket) {
       const exists = folders.value.some(f => f.path === folder.path);
       if (!exists) {
         folders.value.push(folder);
-        // Sort folders alphabetically
         folders.value.sort((a, b) => a.filename.localeCompare(b.filename));
       }
     }
@@ -147,21 +144,29 @@ onMounted(fetchFolders);
     border-left: 3px solid #ff4500;
 }
 
-/* Hide the 📁 icon from style.scss when downloading */
 .folder-item.is-downloading::before {
     display: none;
 }
 
-.folder-delete {
+.folder-actions {
     margin-left: auto;
-    color: #ff4444;
+    display: flex;
+    gap: 4px;
     opacity: 0;
     transition: opacity 0.2s;
+}
+.folder-item:hover .folder-actions { opacity: 1; }
+
+.folder-action {
     padding: 2px 6px;
     border-radius: 4px;
-    font-size: 1.1rem;
     line-height: 1;
+    font-size: 0.9rem;
 }
-.folder-item:hover .folder-delete { opacity: 1; }
-.folder-delete:hover { background: rgba(255, 68, 68, 0.2); }
+
+.delete-btn {
+    color: #ff4444;
+    font-size: 1.1rem;
+}
+.delete-btn:hover { background: rgba(255, 68, 68, 0.2); }
 </style>

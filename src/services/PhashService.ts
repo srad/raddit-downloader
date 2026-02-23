@@ -158,7 +158,6 @@ export class PhashService {
       });
     });
   }
-
   /**
    * Generate array of 5 perceptual hashes for video (multi-frame sampling)
    * Extracts frames at 10%, 30%, 50%, 70%, 90% of video duration
@@ -258,7 +257,6 @@ export class PhashService {
     }
     return distance;
   }
-
   /**
    * Compare two phashes (handles both image and video phashes)
    * For videos, uses voting system: match if 3+ out of 5 frames match
@@ -320,13 +318,15 @@ export class PhashService {
    * Find a single duplicate in the database for a given phash
    * @param phash Phash to check
    * @param threshold Hamming distance threshold
+   * @param pathPrefix Optional path prefix to restrict search
    * @returns The matching record if found, null otherwise
    */
   async findDuplicate(
     phash: string | string[],
-    threshold: number = 5
+    threshold: number = 5,
+    pathPrefix?: string
   ): Promise<DownloadRecord | null> {
-    const records = await this.dbService.getAllDownloadsWithPhash();
+    const records = await this.dbService.getDownloads({ hasPhash: true, pathPrefix });
     
     for (const record of records) {
       try {
@@ -345,23 +345,25 @@ export class PhashService {
     
     return null;
   }
-
   /**
    * Find all duplicate files based on perceptual hash similarity
    * @param threshold Hamming distance threshold (default: 5 bits)
    * @param signal AbortSignal to cancel the operation
    * @param onProgress Callback for progress updates
+   * @param pathPrefix Optional path prefix to filter by (e.g. folder name)
    * @returns Array of duplicate groups, sorted by group size
    */
   async findDuplicates(
     threshold: number = 5,
     signal?: AbortSignal,
-    onProgress?: (processed: number, total: number) => void
+    onProgress?: (processed: number, total: number) => void,
+    pathPrefix?: string
   ): Promise<DuplicateDetectionResult> {
-    this.loggerService.log(`Searching for duplicates (threshold: ${threshold} bits)...`, false);
+    const filterMsg = pathPrefix ? ` in ${pathPrefix}` : '';
+    this.loggerService.log(`Searching for duplicates${filterMsg} (threshold: ${threshold} bits)...`, false);
 
-    // Get all records with phash
-    const records = await this.dbService.getAllDownloadsWithPhash();
+    // Get records with phash, optionally filtered by path
+    const records = await this.dbService.getDownloads({ hasPhash: true, pathPrefix });
 
     if (records.length === 0) {
       this.loggerService.log('No files with phash found in database', false);

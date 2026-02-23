@@ -80,12 +80,14 @@ export interface MediaMetadataItem {
   status?: string; // Status of the media item
   e?: string; // Encoding/type (e.g., "Image", "AnimatedImage")
   m?: string; // MIME type (e.g., "image/jpg", "image/png")
-  p?: Array<{ // Preview images at different sizes
+  p?: Array<{
+    // Preview images at different sizes
     x: number; // Width
     y: number; // Height
     u?: string; // URL
   }>;
-  s?: { // Source (full-size image info)
+  s?: {
+    // Source (full-size image info)
     x?: number; // Width
     y?: number; // Height
     u?: string; // URL
@@ -147,6 +149,12 @@ export interface FileItem {
 export interface DownloadResult {
   downloaded: boolean;
   fileItem?: FileItem;
+}
+
+export interface ValidationResult {
+  valid: boolean;
+  warnings: string[];
+  errors: string[];
 }
 
 export interface State {

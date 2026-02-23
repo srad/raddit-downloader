@@ -4,6 +4,7 @@ import FileGridItem from './FileGridItem.vue';
 import type { FileItem } from '../types';
 
 interface DuplicateGroupData {
+  id: string;
   type: 'video' | 'image' | 'mixed' | string;
   confidence?: number;
   files: FileItem[];
@@ -13,13 +14,14 @@ interface DuplicateGroupData {
 // 2. Props
 const props = defineProps<{
   group: DuplicateGroupData;
-  groupIndex: number;
+  selectedPaths: Set<string>;
 }>();
 
 // 3. Emits
 const emit = defineEmits<{
-  (e: 'open-lightbox', groupIndex: number, fileIndex: number): void;
-  (e: 'delete-file', fileId: string | number, groupIndex: number): void;
+  (e: 'open-lightbox', groupId: string, fileIndex: number): void;
+  (e: 'delete-file', fileId: string | number, groupId: string): void;
+  (e: 'toggle-selection', path: string): void;
 }>();
 
 // 4. Logic
@@ -52,14 +54,17 @@ const formatSize = (bytes?: number): string => {
 };
 
 const openLightbox = (fileIndex: number) => {
-  emit('open-lightbox', props.groupIndex, fileIndex);
+  emit('open-lightbox', props.group.id, fileIndex);
 };
 
 const deleteFile = (fileId: string | number) => {
-  emit('delete-file', fileId, props.groupIndex);
+  emit('delete-file', fileId, props.group.id);
+};
+
+const toggleSelection = (path: string) => {
+  emit('toggle-selection', path);
 };
 </script>
-
 <template>
   <article class="duplicate-group">
     <header>
@@ -67,7 +72,7 @@ const deleteFile = (fileId: string | number) => {
         <hgroup>
           <h4>
             <span role="img" aria-label="type">{{ typeIcon }}</span>
-            Group {{ groupIndex + 1 }}
+            Group
           </h4>
           <p>{{ group.files.length }} files &bull; Avg distance: {{ group.avgDistance }}</p>
         </hgroup>
@@ -80,34 +85,34 @@ const deleteFile = (fileId: string | number) => {
     </header>
 
     <div class="gallery-grid">
-      <FileGridItem
-        v-for="(file, fileIndex) in group.files"
-        :key="file.id"
-        :item="file"
-        :selectable="false"
-        @click="openLightbox(fileIndex)"
-      >
-        <template #actions>
-          <div class="file-info-compact">
-            <span class="file-name" :title="file.filename">{{ file.filename }}</span>
-            <small>{{ formatSize(file.size) }}</small>
-          </div>
-          <div class="action-buttons">
-            <button class="icon-btn delete" @click.stop="deleteFile(file.id)" title="Delete">🗑️</button>
-            <a :href="file.url" target="_blank" class="icon-btn link" @click.stop title="Source">🔗</a>
-          </div>
-        </template>
-      </FileGridItem>
+      <div v-for="(file, fileIndex) in group.files" 
+           :key="file.id"
+           class="file-item-wrapper"
+           :class="{ selected: selectedPaths.has(file.path) }"
+           @click="openLightbox(fileIndex)">
+        
+        <input type="checkbox" class="item-checkbox"
+               :checked="selectedPaths.has(file.path)"
+               @click.stop="toggleSelection(file.path)">
+
+        <FileGridItem :item="file">
+          <template #actions>
+            <div class="file-info-compact">
+              <span class="file-name" :title="file.filename">{{ file.filename }}</span>
+              <small>{{ formatSize(file.size) }}</small>
+            </div>
+            <div class="action-buttons">
+              <button class="icon-btn delete" @click.stop="deleteFile(file.id)" title="Delete">🗑️</button>
+              <a :href="file.url" target="_blank" class="icon-btn link" @click.stop title="Source">🔗</a>
+            </div>
+          </template>
+        </FileGridItem>
+      </div>
     </div>
   </article>
 </template>
 
 <style scoped>
-/* Pico CSS handles most typography, colors, and card styles.
-   We only add layout styles for the specific gallery grid
-   and some spacing adjustments.
-*/
-
 .header-content {
   display: flex;
   justify-content: space-between;
@@ -118,11 +123,47 @@ const deleteFile = (fileId: string | number) => {
   margin-bottom: 0;
 }
 
-/* Custom Gallery Grid */
 .gallery-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 4px;
+  gap: 8px;
+}
+
+.file-item-wrapper {
+  position: relative;
+  aspect-ratio: 1;
+  background: #111;
+  cursor: pointer;
+  border-radius: 4px;
+  overflow: hidden;
+  transition: transform 0.1s;
+}
+
+.file-item-wrapper:hover {
+  transform: scale(1.02);
+  z-index: 1;
+}
+
+.file-item-wrapper.selected {
+  outline: 3px solid var(--primary);
+}
+
+.item-checkbox {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 18px;
+  height: 18px;
+  z-index: 10;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+  accent-color: var(--primary);
+}
+
+.file-item-wrapper:hover .item-checkbox,
+.file-item-wrapper.selected .item-checkbox {
+  opacity: 1;
 }
 
 .file-info-compact {
@@ -171,9 +212,8 @@ const deleteFile = (fileId: string | number) => {
   background: #cf222e;
 }
 
-/* Custom Badge Color override if needed */
 .badge-success {
-  background-color: #2da44e; /* GitHub green or similar */
+  background-color: #2da44e;
   color: white;
   border: none;
 }

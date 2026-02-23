@@ -17,15 +17,17 @@ describe('Stats Logic', () => {
     // Create some dummy files
     fs.writeFileSync(path.join(filesDir, 'file1.txt'), 'hello'); // 5 bytes
     fs.writeFileSync(path.join(filesDir, 'file2.txt'), 'world!!'); // 7 bytes
-    
+
     const subDir = path.join(filesDir, 'sub');
-    fs.mkdirSync(subDir);
+    if (!fs.existsSync(subDir)) {
+      fs.mkdirSync(subDir);
+    }
     fs.writeFileSync(path.join(subDir, 'file3.txt'), '123'); // 3 bytes
   });
 
   afterAll(async () => {
     // Wait a bit more for OS to release files
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
     if (fs.existsSync(testDataDir)) {
       fs.rmSync(testDataDir, { recursive: true, force: true });
     }
@@ -41,17 +43,20 @@ describe('Stats Logic', () => {
   it('DatabaseService.getDownloadCount should return 0 for empty database', async () => {
     const mockLogger = { log: jest.fn() } as any;
     const dbPath = path.join(testDataDir, 'test.db');
+    // Ensure fresh DB for this test
+    if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
+
     const dbService = new DatabaseService(mockLogger, dbPath);
-    
-    // Wait for the async init to finish (since it's not awaited in constructor)
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
+
+    // Wait for the async init to finish (including migrations)
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
     // Initial count should be 0
     const count = await dbService.getDownloadCount();
     expect(count).toBe(0);
-    
+
     dbService.close();
     // Small delay to allow sqlite to release the file handle
-    await new Promise(resolve => setTimeout(resolve, 200));
+    await new Promise((resolve) => setTimeout(resolve, 200));
   });
 });

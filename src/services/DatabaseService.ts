@@ -1,7 +1,7 @@
 import * as sqlite3 from 'sqlite3';
 import * as path from 'path';
 import * as fs from 'fs';
-import { LoggerService } from '../services/LoggerService';
+import { LoggerService } from './LoggerService';
 import { RedditPost } from '../types';
 import { singleton, inject } from 'tsyringe';
 import { DATA_DIR } from '../config/constants';
@@ -18,6 +18,15 @@ export interface DownloadRecord {
   phash: string | null; // Perceptual hash: single hex string for images, JSON array for videos
 }
 
+export interface DownloadFilter {
+  id?: number;
+  hasPhash?: boolean | 'all';
+  pathPrefix?: string;
+  source?: string;
+  limit?: number;
+  offset?: number;
+}
+
 @singleton()
 export class DatabaseService {
   private db: sqlite3.Database;
@@ -25,7 +34,7 @@ export class DatabaseService {
 
   constructor(
     @inject(LoggerService) private loggerService: LoggerService,
-    @inject(DB_PATH_TOKEN) dbPath?: string
+    @inject(DB_PATH_TOKEN) dbPath?: string,
   ) {
     this.DB_PATH = dbPath || path.join(DATA_DIR, 'data.db');
     const dbDir = path.dirname(this.DB_PATH);
@@ -52,7 +61,8 @@ export class DatabaseService {
         url TEXT,
         filename TEXT,
         path TEXT,
-        downloaded_at TEXT
+        downloaded_at TEXT,
+        phash TEXT
       )
     `;
 
@@ -83,15 +93,15 @@ export class DatabaseService {
 
   private migrateToSourceColumn(): void {
     // Check if we need to migrate from subreddit to source column
-    this.db.all("PRAGMA table_info(downloads)", (err, columns: Array<{name: string}>) => {
+    this.db.all('PRAGMA table_info(downloads)', (err, columns: Array<{ name: string }>) => {
       if (err) return;
 
-      const hasSubreddit = columns.some(col => col.name === 'subreddit');
-      const hasSource = columns.some(col => col.name === 'source');
+      const hasSubreddit = columns.some((col) => col.name === 'subreddit');
+      const hasSource = columns.some((col) => col.name === 'source');
 
       if (hasSubreddit && !hasSource) {
         // Old schema: rename subreddit to source
-        this.db.run("ALTER TABLE downloads RENAME COLUMN subreddit TO source", (err) => {
+        this.db.run('ALTER TABLE downloads RENAME COLUMN subreddit TO source', (err) => {
           if (err) {
             this.loggerService.log(`Database migration error: ${err.message}`, true);
           } else {
@@ -101,11 +111,11 @@ export class DatabaseService {
       } else if (hasSubreddit && hasSource) {
         // Both exist: copy subreddit to source where source is null, then drop subreddit
         this.db.serialize(() => {
-          this.db.run("UPDATE downloads SET source = subreddit WHERE source IS NULL");
+          this.db.run('UPDATE downloads SET source = subreddit WHERE source IS NULL');
           // Note: SQLite doesn't support DROP COLUMN before 3.35.0
           // For older SQLite, we'll just leave it
-          this.db.run("ALTER TABLE downloads DROP COLUMN subreddit", (err) => {
-            if (err && !err.message.includes("no such column")) {
+          this.db.run('ALTER TABLE downloads DROP COLUMN subreddit', (err) => {
+            if (err && !err.message.includes('no such column')) {
               // Ignore if column doesn't exist or SQLite version doesn't support DROP COLUMN
             }
           });
@@ -116,14 +126,14 @@ export class DatabaseService {
 
   private migratePHashColumn(): void {
     // Check if we need to add the phash column
-    this.db.all("PRAGMA table_info(downloads)", (err, columns: Array<{name: string}>) => {
+    this.db.all('PRAGMA table_info(downloads)', (err, columns: Array<{ name: string }>) => {
       if (err) return;
 
-      const hasPhash = columns.some(col => col.name === 'phash');
+      const hasPhash = columns.some((col) => col.name === 'phash');
 
       if (!hasPhash) {
         // Add phash column
-        this.db.run("ALTER TABLE downloads ADD COLUMN phash TEXT", (err) => {
+        this.db.run('ALTER TABLE downloads ADD COLUMN phash TEXT', (err) => {
           if (err) {
             this.loggerService.log(`Database migration error (phash): ${err.message}`, true);
           } else {
@@ -139,7 +149,7 @@ export class DatabaseService {
       'CREATE INDEX IF NOT EXISTS idx_downloaded_at ON downloads(downloaded_at DESC)',
       'CREATE INDEX IF NOT EXISTS idx_source ON downloads(source)',
       'CREATE INDEX IF NOT EXISTS idx_source_downloaded ON downloads(source, downloaded_at DESC)',
-      'CREATE INDEX IF NOT EXISTS idx_phash ON downloads(phash)'
+      'CREATE INDEX IF NOT EXISTS idx_phash ON downloads(phash)',
     ];
 
     indexes.forEach((sql) => {
@@ -166,18 +176,14 @@ export class DatabaseService {
 
   public async getDownloadRecord(postId: string): Promise<DownloadRecord | null> {
     return new Promise((resolve, reject) => {
-      this.db.get(
-        'SELECT * FROM downloads WHERE post_id = ?',
-        [postId],
-        (err, row: DownloadRecord | undefined) => {
-          if (err) {
-            this.loggerService.log(`Database error: ${err.message}`, true);
-            reject(err);
-          } else {
-            resolve(row || null);
-          }
+      this.db.get('SELECT * FROM downloads WHERE post_id = ?', [postId], (err, row: DownloadRecord | undefined) => {
+        if (err) {
+          this.loggerService.log(`Database error: ${err.message}`, true);
+          reject(err);
+        } else {
+          resolve(row || null);
         }
-      );
+      });
     });
   }
 
@@ -186,11 +192,11 @@ export class DatabaseService {
    */
   public async getDownloadRecordsByPaths(paths: string[]): Promise<DownloadRecord[]> {
     if (paths.length === 0) return [];
-    
+
     return new Promise((resolve, reject) => {
       const placeholders = paths.map(() => '?').join(',');
       const sql = `SELECT * FROM downloads WHERE path IN (${placeholders})`;
-      
+
       this.db.all(sql, paths, (err, rows: DownloadRecord[]) => {
         if (err) {
           reject(err);
@@ -201,7 +207,13 @@ export class DatabaseService {
     });
   }
 
-  public async addDownload(post: RedditPost, filename: string, filePath: string, source: string, phash?: string | null): Promise<number> {
+  public async addDownload(
+    post: RedditPost,
+    filename: string,
+    filePath: string,
+    source: string,
+    phash?: string | null,
+  ): Promise<number> {
     const sql = `
       INSERT OR IGNORE INTO downloads (post_id, source, url, filename, path, downloaded_at, phash)
       VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -243,7 +255,7 @@ export class DatabaseService {
           this.loggerService.log(`Database error: ${err.message}`, true);
           resolve([]); // Return empty on error
         } else {
-          resolve(rows.map(r => r.source));
+          resolve(rows.map((r) => r.source));
         }
       });
     });
@@ -255,43 +267,69 @@ export class DatabaseService {
   }
 
   /**
-   * Get all download records that have a phash (for duplicate detection)
+   * Generic method to get downloads with filters
    */
-  public async getAllDownloadsWithPhash(): Promise<DownloadRecord[]> {
+  public async getDownloads(filter: DownloadFilter = {}): Promise<DownloadRecord[]> {
     return new Promise((resolve, reject) => {
-      this.db.all(
-        'SELECT * FROM downloads WHERE phash IS NOT NULL',
-        [],
-        (err, rows: DownloadRecord[]) => {
-          if (err) {
-            this.loggerService.log(`Database error: ${err.message}`, true);
-            reject(err);
-          } else {
-            resolve(rows || []);
-          }
+      let sql = 'SELECT * FROM downloads WHERE 1=1';
+      const params: any[] = [];
+
+      if (filter.id) {
+        sql += ' AND id = ?';
+        params.push(filter.id);
+      }
+
+      if (filter.hasPhash === true) {
+        sql += ' AND phash IS NOT NULL';
+      } else if (filter.hasPhash === false) {
+        sql += ' AND phash IS NULL';
+      }
+
+      if (filter.pathPrefix) {
+        sql += ' AND path LIKE ?';
+        params.push(`${filter.pathPrefix}/%`);
+      }
+
+      if (filter.source) {
+        sql += ' AND source = ?';
+        params.push(filter.source);
+      }
+
+      sql += ' ORDER BY downloaded_at DESC';
+
+      if (filter.limit) {
+        sql += ' LIMIT ?';
+        params.push(filter.limit);
+      }
+
+      if (filter.offset) {
+        sql += ' OFFSET ?';
+        params.push(filter.offset);
+      }
+
+      this.db.all(sql, params, (err, rows: DownloadRecord[]) => {
+        if (err) {
+          this.loggerService.log(`Database error: ${err.message}`, true);
+          reject(err);
+        } else {
+          resolve(rows || []);
         }
-      );
+      });
     });
   }
 
   /**
-   * Get all download records without a phash (for migration/backfill)
+   * @deprecated Use getDownloads({ hasPhash: true }) instead
+   */
+  public async getAllDownloadsWithPhash(): Promise<DownloadRecord[]> {
+    return this.getDownloads({ hasPhash: true });
+  }
+
+  /**
+   * @deprecated Use getDownloads({ hasPhash: false }) instead
    */
   public async getDownloadsWithoutPhash(): Promise<DownloadRecord[]> {
-    return new Promise((resolve, reject) => {
-      this.db.all(
-        'SELECT * FROM downloads WHERE phash IS NULL',
-        [],
-        (err, rows: DownloadRecord[]) => {
-          if (err) {
-            this.loggerService.log(`Database error: ${err.message}`, true);
-            reject(err);
-          } else {
-            resolve(rows || []);
-          }
-        }
-      );
-    });
+    return this.getDownloads({ hasPhash: false });
   }
 
   /**
@@ -299,18 +337,14 @@ export class DatabaseService {
    */
   public async updatePhash(id: number, phash: string): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.db.run(
-        'UPDATE downloads SET phash = ? WHERE id = ?',
-        [phash, id],
-        (err) => {
-          if (err) {
-            this.loggerService.log(`Database update error: ${err.message}`, true);
-            reject(err);
-          } else {
-            resolve();
-          }
+      this.db.run('UPDATE downloads SET phash = ? WHERE id = ?', [phash, id], (err) => {
+        if (err) {
+          this.loggerService.log(`Database update error: ${err.message}`, true);
+          reject(err);
+        } else {
+          resolve();
         }
-      );
+      });
     });
   }
 
@@ -319,18 +353,35 @@ export class DatabaseService {
    */
   public async deleteDownload(id: number): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.db.run(
-        'DELETE FROM downloads WHERE id = ?',
-        [id],
-        (err) => {
-          if (err) {
-            this.loggerService.log(`Database delete error: ${err.message}`, true);
-            reject(err);
-          } else {
-            resolve();
-          }
+      this.db.run('DELETE FROM downloads WHERE id = ?', [id], (err) => {
+        if (err) {
+          this.loggerService.log(`Database delete error: ${err.message}`, true);
+          reject(err);
+        } else {
+          resolve();
         }
-      );
+      });
+    });
+  }
+
+  /**
+   * Delete all download records whose path starts with a prefix
+   * Useful for folder deletion
+   */
+  public async deleteDownloadsByPathPrefix(pathPrefix: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      // Use both exact match and prefix match to be safe
+      const sql = 'DELETE FROM downloads WHERE path = ? OR path LIKE ?';
+      const params = [pathPrefix, `${pathPrefix}/%`];
+
+      this.db.run(sql, params, (err) => {
+        if (err) {
+          this.loggerService.log(`Database delete error (prefix): ${err.message}`, true);
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
     });
   }
 
@@ -364,12 +415,12 @@ export class DatabaseService {
 
   public async getAllSettings(): Promise<Record<string, string>> {
     return new Promise((resolve, reject) => {
-      this.db.all('SELECT key, value FROM settings', [], (err, rows: Array<{ key: string, value: string }>) => {
+      this.db.all('SELECT key, value FROM settings', [], (err, rows: Array<{ key: string; value: string }>) => {
         if (err) {
           reject(err);
         } else {
           const settings: Record<string, string> = {};
-          rows.forEach(row => {
+          rows.forEach((row) => {
             settings[row.key] = row.value;
           });
           resolve(settings);
@@ -380,17 +431,13 @@ export class DatabaseService {
 
   public async setSetting(key: string, value: string): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.db.run(
-        'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
-        [key, value],
-        (err) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
+      this.db.run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [key, value], (err) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
         }
-      );
+      });
     });
   }
 
