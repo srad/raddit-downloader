@@ -424,10 +424,25 @@ export class WebRunner extends EventEmitter implements Runner {
         const fsService = container.resolve(FileSystemService);
         const downloadsDir = path.join(DATA_DIR, 'downloads');
 
-        const count = await this.dbService.getDownloadCount();
+        const dbCount = await this.dbService.getDownloadCount();
         const totalSize = await fsService.getDirectorySize(downloadsDir);
 
-        res.json({ count, totalSize });
+        // Count actual files on disk recursively
+        let totalFiles = 0;
+        const countFiles = async (dir: string) => {
+          if (!(await FileUtils.exists(dir))) return;
+          const items = await fs.readdir(dir, { withFileTypes: true });
+          for (const item of items) {
+            if (item.isDirectory()) {
+              await countFiles(path.join(dir, item.name));
+            } else if (item.isFile()) {
+              totalFiles++;
+            }
+          }
+        };
+        await countFiles(downloadsDir);
+
+        res.json({ count: dbCount, fileCount: totalFiles, totalSize });
       } catch (e) {
         console.error('Failed to get stats:', e);
         res.status(500).json({ error: String(e) });
@@ -638,7 +653,7 @@ export class WebRunner extends EventEmitter implements Runner {
       const signal = this.duplicateScanController.signal;
 
       try {
-        const threshold = parseInt(req.query.threshold as string) || 5;
+        const threshold = parseInt(req.query.threshold as string) || 85;
         const pathPrefix = req.query.path as string;
         const phashService = container.resolve(PhashService);
         const thumbnailService = container.resolve(ThumbnailService);
@@ -690,6 +705,165 @@ export class WebRunner extends EventEmitter implements Runner {
         res.json({ success: true, message: 'Scan cancelled' });
       } else {
         res.json({ success: false, message: 'No scan in progress' });
+      }
+    });
+
+    this.app.post('/api/duplicates/rehash-all', async (req, res) => {
+      try {
+        // 1. Clear all phashes
+        await this.dbService.clearAllPhashes();
+
+        // 2. Trigger regeneration (same logic as generate-phash but without filter)
+        const records = await this.dbService.getDownloads({ hasPhash: false });
+
+        res.json({
+          status: 'started',
+          total: records.length,
+        });
+
+        setImmediate(async () => {
+          const phashService = container.resolve(PhashService);
+          const downloadsDir = path.join(DATA_DIR, 'downloads');
+          let processed = 0;
+          let generated = 0;
+
+          this.io.emit('phash_generation', {
+            status: 'started',
+            total: records.length,
+            processed: 0,
+          });
+
+          for (const record of records) {
+            const fullPath = path.join(downloadsDir, record.path);
+            processed++;
+
+            if (!(await FileUtils.exists(fullPath))) {
+              continue;
+            }
+
+            try {
+              const phash = await phashService.generatePhash(fullPath);
+              if (phash) {
+                const phashStr = Array.isArray(phash) ? JSON.stringify(phash) : phash;
+                await this.dbService.updatePhash(record.id, phashStr);
+                generated++;
+              }
+            } catch (e) {}
+
+            if (processed % 10 === 0 || processed === records.length) {
+              this.io.emit('phash_generation', {
+                status: 'processing',
+                total: records.length,
+                processed,
+                generated,
+              });
+            }
+          }
+
+          this.io.emit('phash_generation', {
+            status: 'completed',
+            total: records.length,
+            processed,
+            generated,
+          });
+        });
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    this.app.post('/api/maintenance/sync-library', async (req, res) => {
+      try {
+        const phashService = container.resolve(PhashService);
+        const thumbnailService = container.resolve(ThumbnailService);
+        const downloadsDir = path.join(DATA_DIR, 'downloads');
+
+        if (!(await FileUtils.exists(downloadsDir))) {
+          return res.json({ status: 'completed', total: 0, message: 'Downloads directory does not exist' });
+        }
+
+        // 1. Get all files on disk
+        const filesOnDisk: string[] = [];
+        const scanDir = async (dir: string) => {
+          const items = await fs.readdir(dir, { withFileTypes: true });
+          for (const item of items) {
+            const fullPath = path.join(dir, item.name);
+            if (item.isDirectory()) {
+              await scanDir(fullPath);
+            } else {
+              filesOnDisk.push(path.relative(downloadsDir, fullPath).replace(/\\/g, '/'));
+            }
+          }
+        };
+        await scanDir(downloadsDir);
+
+        // 2. Identify missing files
+        const dbRecords = await this.dbService.getDownloadRecordsByPaths(filesOnDisk);
+        const indexedPaths = new Set(dbRecords.map((r) => r.path));
+        const missingFiles = filesOnDisk.filter((p) => !indexedPaths.has(p));
+
+        if (missingFiles.length === 0) {
+          return res.json({ status: 'completed', total: 0, message: 'Library is already fully synchronized' });
+        }
+
+        res.json({ status: 'started', total: missingFiles.length });
+
+        setImmediate(async () => {
+          let processed = 0;
+          let indexed = 0;
+
+          this.io.emit('library_sync_progress', { status: 'started', total: missingFiles.length, processed: 0 });
+
+          for (const relPath of missingFiles) {
+            const fullPath = path.join(downloadsDir, relPath);
+            processed++;
+
+            try {
+              // Extract info from path (e.g., "r_pics/image.jpg")
+              const parts = relPath.split('/');
+              const source = parts[0];
+              const filename = parts[parts.length - 1];
+
+              // Generate phash
+              const phash = await phashService.generatePhash(fullPath);
+              const phashStr = phash ? (Array.isArray(phash) ? JSON.stringify(phash) : phash) : null;
+
+              // Generate thumbnail
+              await thumbnailService.generateThumbnail(fullPath, relPath);
+
+              // Add to DB
+              const mockPost = {
+                name: `manual_${Date.now()}_${processed}`,
+                url: '',
+                subreddit: source,
+                title: filename,
+              } as any;
+
+              await this.dbService.addDownload(mockPost, filename, relPath, source, phashStr);
+              indexed++;
+            } catch (e) {
+              console.error(`Failed to sync ${relPath}:`, e);
+            }
+
+            if (processed % 10 === 0 || processed === missingFiles.length) {
+              this.io.emit('library_sync_progress', {
+                status: 'processing',
+                total: missingFiles.length,
+                processed,
+                indexed,
+              });
+            }
+          }
+
+          this.io.emit('library_sync_progress', {
+            status: 'completed',
+            total: missingFiles.length,
+            processed,
+            indexed,
+          });
+        });
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
       }
     });
 

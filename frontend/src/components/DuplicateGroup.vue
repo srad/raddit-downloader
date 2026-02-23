@@ -74,7 +74,7 @@ const toggleSelection = (path: string) => {
             <span role="img" aria-label="type">{{ typeIcon }}</span>
             Group
           </h4>
-          <p>{{ group.files.length }} files &bull; Avg distance: {{ group.avgDistance }}</p>
+          <p>{{ group.files.length }} files &bull; Similarity: {{ group.avgDistance }}%</p>
         </hgroup>
 
         <div v-if="confidencePercent !== null">
@@ -85,15 +85,19 @@ const toggleSelection = (path: string) => {
     </header>
 
     <div class="gallery-grid">
-      <div v-for="(file, fileIndex) in group.files" 
-           :key="file.id"
-           class="file-item-wrapper"
-           :class="{ selected: selectedPaths.has(file.path) }"
-           @click="openLightbox(fileIndex)">
-        
-        <input type="checkbox" class="item-checkbox"
-               :checked="selectedPaths.has(file.path)"
-               @click.stop="toggleSelection(file.path)">
+      <div
+        v-for="(file, fileIndex) in group.files"
+        :key="file.id"
+        class="file-item-wrapper"
+        :class="{ selected: selectedPaths.has(file.path) }"
+        @click="openLightbox(fileIndex)"
+      >
+        <input
+          type="checkbox"
+          class="item-checkbox"
+          :checked="selectedPaths.has(file.path)"
+          @click.stop="toggleSelection(file.path)"
+        />
 
         <FileGridItem :item="file">
           <template #actions>
@@ -173,7 +177,7 @@ const toggleSelection = (path: string) => {
   display: flex;
   flex-direction: column;
   font-size: 0.75rem;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 }
 
 .file-name {
@@ -189,7 +193,7 @@ const toggleSelection = (path: string) => {
 }
 
 .icon-btn {
-  background: rgba(255,255,255,0.2);
+  background: rgba(255, 255, 255, 0.2);
   border: none;
   border-radius: 4px;
   width: 28px;
@@ -205,7 +209,7 @@ const toggleSelection = (path: string) => {
 }
 
 .icon-btn:hover {
-  background: rgba(255,255,255,0.4);
+  background: rgba(255, 255, 255, 0.4);
 }
 
 .icon-btn.delete:hover {

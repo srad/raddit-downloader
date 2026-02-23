@@ -349,6 +349,22 @@ export class DatabaseService {
   }
 
   /**
+   * Clear all perceptual hashes from the database
+   */
+  public async clearAllPhashes(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.db.run('UPDATE downloads SET phash = NULL', [], (err) => {
+        if (err) {
+          this.loggerService.log(`Database error (clear phashes): ${err.message}`, true);
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    });
+  }
+
+  /**
    * Delete a download record by ID (for duplicate removal)
    */
   public async deleteDownload(id: number): Promise<void> {

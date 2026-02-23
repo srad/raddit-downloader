@@ -16,21 +16,23 @@ export class YouTubeDownloader implements Downloader {
   constructor(
     @inject(FileSystemService) private fsService: FileSystemService,
     @inject(LoggerService) private loggerService: LoggerService,
-    @inject(CONFIG_TOKEN) private config: Config
+    @inject(CONFIG_TOKEN) private config: Config,
   ) {}
 
   canHandle(post: RedditPost): boolean {
-    return (this.config.download_youtube_videos_experimental ?? false) && 
-           getPostType(post) === PostType.Link && 
-           post.domain.includes('youtu');
+    return (
+      (this.config.download_youtube_videos_experimental ?? false) &&
+      getPostType(post) === PostType.Link &&
+      post.domain.includes('youtu')
+    );
   }
 
-  async download(post: RedditPost, targetDir: string, filenameBase: string): Promise<string> {
+  async download(post: RedditPost, targetDir: string, filenameBase: string): Promise<string[]> {
     const filename = `${filenameBase}.mp4`;
 
     if (!ytdl || !ffmpegPath) {
       this.loggerService.log('YouTube download dependencies not available', true);
-      return filename;
+      return [filename];
     }
 
     this.loggerService.log(`Downloading ${filenameBase} from YouTube... This may take a while...`, false);
@@ -45,7 +47,7 @@ export class YouTubeDownloader implements Downloader {
       const fileName = `${filenameBase}.mp4`;
       const audioPath = `${targetDir}/${filenameBase}.mp3`;
       const videoPath = `${targetDir}/${filenameBase}.mp4`; // Temp video path
-      
+
       const tempVideoPath = `${targetDir}/${filenameBase}_temp_video.mp4`;
 
       const audio = ytdl(post.url, { filter: 'audioonly' });
@@ -67,12 +69,16 @@ export class YouTubeDownloader implements Downloader {
 
         // Merge video and audio using ffmpeg
         const args = [
-          '-i', tempVideoPath,
-          '-i', audioPath,
-          '-c:v', 'copy',
-          '-c:a', 'aac',
+          '-i',
+          tempVideoPath,
+          '-i',
+          audioPath,
+          '-c:v',
+          'copy',
+          '-c:a',
+          'aac',
           '-y',
-          `${targetDir}/${fileName}`
+          `${targetDir}/${fileName}`,
         ];
 
         const ffmpegProcess = spawn(ffmpegPath, args);
@@ -100,7 +106,7 @@ export class YouTubeDownloader implements Downloader {
         });
       });
 
-      return filename;
+      return [filename];
     } catch (error) {
       this.loggerService.log(
         `Failed to download ${filenameBase} from YouTube. Do you have FFMPEG installed? https://ffmpeg.org/`,

@@ -50,13 +50,13 @@
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| **Runtime** | Node.js, Electron |
-| **Frontend** | Vue 3, Vite, TypeScript, SCSS |
-| **Backend** | TypeScript, SQLite |
-| **Build / Packaging** | [Electron Forge](https://www.electronforge.io/) |
-| **Libraries** | tsyringe (DI), sharp (Image processing), ffmpeg (Video processing) |
+| Layer                 | Technology                                                         |
+| --------------------- | ------------------------------------------------------------------ |
+| **Runtime**           | Node.js, Electron                                                  |
+| **Frontend**          | Vue 3, Vite, TypeScript, SCSS                                      |
+| **Backend**           | TypeScript, SQLite                                                 |
+| **Build / Packaging** | [Electron Forge](https://www.electronforge.io/)                    |
+| **Libraries**         | tsyringe (DI), sharp (Image processing), ffmpeg (Video processing) |
 
 ## Quick Start
 
@@ -88,6 +88,7 @@ npm start              # Interactive CLI prompts
 ```
 
 The CLI will ask you:
+
 - Subreddit or user profile to download from (e.g., `pics` or `u/username`)
 - Number of posts (or `all` for unlimited)
 - Sort method: `Top`, `New`, `Hot`, `Rising`, `Controversial`
@@ -101,6 +102,7 @@ npm run web           # Web interface at http://localhost:3000
 ```
 
 Features:
+
 - Real-time download progress per batch
 - File browser with thumbnails
 - Gallery lightbox viewer
@@ -121,21 +123,24 @@ RadditDownloader uses perceptual hashing (pHash) to detect duplicate and similar
 ### Finding Duplicates
 
 **CLI Commands:**
+
 ```bash
-# Find duplicates with default threshold (5 bits)
+# Find duplicates with default threshold (85% similarity)
 npm run web -- --find-duplicates
 
-# Find duplicates with custom threshold (higher = less strict)
-npm run web -- --find-duplicates=8
+# Find duplicates with custom threshold (lower = less strict)
+npm run web -- --find-duplicates=70
 
 # Generate phashes for existing downloads
 npm run web -- --generate-phash
 ```
 
 **Web API:**
+
 ```bash
 # Get duplicates via API
-GET http://localhost:3000/api/duplicates?threshold=5
+GET http://localhost:3000/api/duplicates?threshold=85
+
 
 # Trigger background phash generation
 POST http://localhost:3000/api/duplicates/generate
@@ -147,11 +152,13 @@ DELETE http://localhost:3000/api/duplicates/:id
 ### How It Works
 
 **For Images:**
+
 - Generates a single 64-bit perceptual hash per image
 - Hash is invariant to resizing, compression, and minor edits
 - Hamming distance used to compare similarity
 
 **For Videos:**
+
 - Extracts 5 frames at 10%, 30%, 50%, 70%, and 90% of video duration
 - Generates phash for each frame
 - Uses voting system: duplicates if 3+ frames match (60% confidence)
@@ -183,18 +190,21 @@ npm install
 You can run the application in different modes during development:
 
 **CLI Mode (Interactive):**
+
 ```bash
 npm start
 ```
 
 **Web Interface:**
 Starts the backend server and web UI at `http://localhost:3000`.
+
 ```bash
 npm run web
 ```
 
 **Desktop App (Electron):**
 Builds the frontend and launches the Electron desktop application.
+
 ```bash
 npm run desktop
 ```
@@ -211,6 +221,7 @@ npm run make
 ```
 
 The output files will be located in the `out/` directory:
+
 - **Windows:** `out/make/squirrel.windows/x64/`
 - **Linux:** `out/make/deb/x64/` or `out/make/rpm/x64/`
 

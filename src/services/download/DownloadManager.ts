@@ -21,20 +21,21 @@ export class DownloadManager {
     @inject(DatabaseService) private dbService: DatabaseService,
     @inject(FileSystemService) private fsService: FileSystemService,
     @inject(ThumbnailService) private thumbnailService: ThumbnailService,
-    @inject(PhashService) private phashService: PhashService
+    @inject(PhashService) private phashService: PhashService,
   ) {}
 
   public registerDownloader(downloader: Downloader): void {
     this.downloaders.push(downloader);
   }
 
-  public async download(post: RedditPost, targetDir: string, filenameBase: string, source?: string): Promise<DownloadResult> {
+  public async download(
+    post: RedditPost,
+    targetDir: string,
+    filenameBase: string,
+    source?: string,
+  ): Promise<DownloadResult> {
     // Check History DB - but only skip if file actually exists on disk
-    if (
-      this.dbService &&
-      this.config.use_history_database !== false &&
-      !this.config.redownload_posts
-    ) {
+    if (this.dbService && this.config.use_history_database !== false && !this.config.redownload_posts) {
       const dbRecord = await this.dbService.getDownloadRecord(post.name);
       if (dbRecord) {
         // dbRecord.path contains full relative path (e.g., "r_pics/somefile.jpg")
@@ -52,11 +53,11 @@ export class DownloadManager {
     }
 
     if (DEBUG) {
-        // Log post details for debugging
-        this.loggerService.log(`Processing post: ${post.title}`, true);
-        this.loggerService.log(`  URL: ${post.url}`, true);
-        this.loggerService.log(`  Domain: ${post.domain}`, true);
-        this.loggerService.log(`  Post hint: ${post.post_hint || 'none'}`, true);
+      // Log post details for debugging
+      this.loggerService.log(`Processing post: ${post.title}`, true);
+      this.loggerService.log(`  URL: ${post.url}`, true);
+      this.loggerService.log(`  Domain: ${post.domain}`, true);
+      this.loggerService.log(`  Post hint: ${post.post_hint || 'none'}`, true);
     }
 
     for (const downloader of this.downloaders) {
@@ -66,65 +67,81 @@ export class DownloadManager {
 
       if (canHandle) {
         this.loggerService.log(`Using ${downloaderName} for: ${post.title}`, true);
-        const filename = await downloader.download(post, targetDir, filenameBase);
+        const filenames = await downloader.download(post, targetDir, filenameBase);
+        const fileItems: FileItem[] = [];
 
-        // Generate perceptual hash for duplicate detection
-        const fullFilePath = path.join(targetDir, filename);
-        let phashStr: string | null = null;
-        try {
-          const phash = await this.phashService.generatePhash(fullFilePath);
-          if (phash) {
-            // Serialize phash (single string for images, JSON array for videos)
-            phashStr = Array.isArray(phash) ? JSON.stringify(phash) : phash;
-            this.loggerService.log(`  Generated phash: ${Array.isArray(phash) ? `[${phash.length} frames]` : phashStr.substring(0, 12)}...`, true);
+        for (let i = 0; i < filenames.length; i++) {
+          const filename = filenames[i];
+          const fullFilePath = path.join(targetDir, filename);
 
-            // Active duplicate prevention
-            if (this.config.prevent_duplicates !== false) {
-              const threshold = this.config.duplicate_threshold ?? 5;
-              const duplicate = await this.phashService.findDuplicate(phash, threshold);
-              
-              if (duplicate) {
-                this.loggerService.log(`  Duplicate detected (content match): same as ${duplicate.filename} from ${duplicate.source}`, true);
-                this.loggerService.log(`  Skipping and deleting duplicate...`, true);
-                
-                await this.fsService.deleteFile(fullFilePath);
-                return { downloaded: false }; 
+          // Generate perceptual hash for duplicate detection
+          let phashStr: string | null = null;
+          try {
+            const phash = await this.phashService.generatePhash(fullFilePath);
+            if (phash) {
+              // Serialize phash (single string for images, JSON array for videos)
+              phashStr = Array.isArray(phash) ? JSON.stringify(phash) : phash;
+              this.loggerService.log(
+                `  Generated phash for item ${i + 1}: ${Array.isArray(phash) ? `[${phash.length} frames]` : phashStr.substring(0, 12)}...`,
+                true,
+              );
+
+              // Active duplicate prevention
+              if (this.config.prevent_duplicates !== false) {
+                const threshold = this.config.duplicate_threshold ?? 5;
+                const duplicate = await this.phashService.findDuplicate(phash, threshold);
+
+                if (duplicate) {
+                  this.loggerService.log(
+                    `  Duplicate detected (content match) for item ${i + 1}: same as ${duplicate.filename} from ${duplicate.source}`,
+                    true,
+                  );
+                  this.loggerService.log(`  Skipping and deleting duplicate...`, true);
+
+                  await this.fsService.deleteFile(fullFilePath);
+                  continue;
+                }
               }
             }
+          } catch (error: any) {
+            this.loggerService.log(`  Warning: phash generation failed for item ${i + 1}: ${error.message}`, true);
           }
-        } catch (error: any) {
-          this.loggerService.log(`  Warning: phash generation failed: ${error.message}`, true);
-          // Continue without phash
+
+          let insertedId = 0;
+          if (this.dbService && this.config.use_history_database !== false) {
+            const downloadSource = source || post.subreddit;
+            const relativeDir = path.basename(targetDir);
+            const relativePath = `${relativeDir}/${filename}`;
+
+            // Create unique post ID for gallery items to satisfy UNIQUE constraint
+            const uniquePostId = filenames.length > 1 ? `${post.name}_${String(i + 1).padStart(2, '0')}` : post.name;
+
+            const miniPost = { ...post, name: uniquePostId };
+            insertedId = await this.dbService.addDownload(miniPost, filename, relativePath, downloadSource, phashStr);
+          }
+
+          // Generate thumbnail
+          const relativeDir = path.basename(targetDir);
+          const relativePath = `${relativeDir}/${filename}`;
+          const thumbnailRelativePath = await this.thumbnailService.generateThumbnail(fullFilePath, relativePath);
+
+          const stats = await fs.stat(fullFilePath);
+
+          fileItems.push({
+            id: insertedId,
+            filename: filename,
+            isDirectory: false,
+            path: relativePath,
+            size: stats.size,
+            thumbnail: thumbnailRelativePath,
+          });
         }
 
-        let insertedId = 0;
-        if (this.dbService && this.config.use_history_database !== false) {
-           // Use provided source or fall back to post.subreddit
-           const downloadSource = source || post.subreddit;
-           // Store full relative path: "r_pics/somefile.jpg"
-           const relativeDir = path.basename(targetDir);
-           const relativePath = `${relativeDir}/${filename}`;
-           insertedId = await this.dbService.addDownload(post, filename, relativePath, downloadSource, phashStr);
+        if (fileItems.length === 0) {
+          return { downloaded: false };
         }
 
-        // Generate thumbnail for the downloaded file
-        const relativeDir = path.basename(targetDir);
-        const relativePath = `${relativeDir}/${filename}`;
-        const filePath = path.join(targetDir, filename);
-        const thumbnailRelativePath = await this.thumbnailService.generateThumbnail(filePath, relativePath);
-
-        const stats = await fs.stat(filePath);
-
-        const fileItem: FileItem = {
-          id: insertedId,
-          filename: filename,
-          isDirectory: false,
-          path: relativePath,
-          size: stats.size,
-          thumbnail: thumbnailRelativePath
-        };
-
-        return { downloaded: true, fileItem };
+        return { downloaded: true, fileItem: fileItems[0] }; // Return first item for backward compatibility if needed
       }
     }
     this.loggerService.log(`❌ No downloader found for post: ${post.title}`, true);

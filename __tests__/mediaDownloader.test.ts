@@ -79,20 +79,17 @@ describe('MediaDownloader', () => {
           start(controller) {
             controller.enqueue(new TextEncoder().encode('<html><body>Not an image</body></html>'));
             controller.close();
-          }
+          },
         }),
       };
 
       (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
 
-      await expect(
-        mediaDownloader.download(mockPost, '/downloads/r_pics', 'testbase')
-      ).rejects.toThrow('Invalid content type: text/html');
-
-      expect(mockLogger.log).toHaveBeenCalledWith(
-        expect.stringContaining('Received text/html'),
-        true
+      await expect(mediaDownloader.download(mockPost, '/downloads/r_pics', 'testbase')).rejects.toThrow(
+        'Invalid content type: text/html',
       );
+
+      expect(mockLogger.log).toHaveBeenCalledWith(expect.stringContaining('Received text/html'), true);
     });
 
     it('should reject JSON responses', async () => {
@@ -122,15 +119,15 @@ describe('MediaDownloader', () => {
           start(controller) {
             controller.enqueue(new TextEncoder().encode('{"error": "not found"}'));
             controller.close();
-          }
+          },
         }),
       };
 
       (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
 
-      await expect(
-        mediaDownloader.download(mockPost, '/downloads/r_pics', 'testbase')
-      ).rejects.toThrow('Invalid content type: application/json');
+      await expect(mediaDownloader.download(mockPost, '/downloads/r_pics', 'testbase')).rejects.toThrow(
+        'Invalid content type: application/json',
+      );
     });
 
     it('should accept valid image content types', async () => {
@@ -160,7 +157,7 @@ describe('MediaDownloader', () => {
           start(controller) {
             controller.enqueue(new TextEncoder().encode('fake image data'));
             controller.close();
-          }
+          },
         }),
       };
 
@@ -168,7 +165,7 @@ describe('MediaDownloader', () => {
 
       const result = await mediaDownloader.download(mockPost, '/downloads/r_pics', 'testbase');
 
-      expect(result).toBe('testbase.jpg');
+      expect(result).toEqual(['testbase.jpg']);
       expect(mockFsService.createWriteStream).toHaveBeenCalledWith('/downloads/r_pics/testbase.jpg');
     });
 
@@ -199,7 +196,7 @@ describe('MediaDownloader', () => {
           start(controller) {
             controller.enqueue(new TextEncoder().encode('fake image data'));
             controller.close();
-          }
+          },
         }),
       };
 
@@ -207,19 +204,10 @@ describe('MediaDownloader', () => {
 
       const result = await mediaDownloader.download(mockPost, '/downloads/r_pics', 'testbase');
 
-      expect(result).toBe('testbase.jpg');
-      expect(mockLogger.log).toHaveBeenCalledWith(
-        expect.stringContaining('WARNING: Content-Type mismatch'),
-        true
-      );
-      expect(mockLogger.log).toHaveBeenCalledWith(
-        expect.stringContaining('Expected: image/jpeg or image/jpg'),
-        true
-      );
-      expect(mockLogger.log).toHaveBeenCalledWith(
-        expect.stringContaining('Received: image/png'),
-        true
-      );
+      expect(result).toEqual(['testbase.jpg']);
+      expect(mockLogger.log).toHaveBeenCalledWith(expect.stringContaining('WARNING: Content-Type mismatch'), true);
+      expect(mockLogger.log).toHaveBeenCalledWith(expect.stringContaining('Expected: image/jpeg or image/jpg'), true);
+      expect(mockLogger.log).toHaveBeenCalledWith(expect.stringContaining('Received: image/png'), true);
     });
 
     it('should accept application/octet-stream as generic binary', async () => {
@@ -249,7 +237,7 @@ describe('MediaDownloader', () => {
           start(controller) {
             controller.enqueue(new TextEncoder().encode('fake image data'));
             controller.close();
-          }
+          },
         }),
       };
 
@@ -257,12 +245,10 @@ describe('MediaDownloader', () => {
 
       const result = await mediaDownloader.download(mockPost, '/downloads/r_pics', 'testbase');
 
-      expect(result).toBe('testbase.jpg');
+      expect(result).toEqual(['testbase.jpg']);
+
       // Should not log warnings for octet-stream
-      expect(mockLogger.log).not.toHaveBeenCalledWith(
-        expect.stringContaining('WARNING: Content-Type mismatch'),
-        true
-      );
+      expect(mockLogger.log).not.toHaveBeenCalledWith(expect.stringContaining('WARNING: Content-Type mismatch'), true);
     });
   });
 });

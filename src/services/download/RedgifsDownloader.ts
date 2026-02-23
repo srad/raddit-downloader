@@ -34,7 +34,8 @@ export class RedgifsDownloader implements Downloader {
       const response = await fetch('https://api.redgifs.com/v2/auth/temporary', {
         method: 'GET',
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
         },
       });
 
@@ -56,7 +57,7 @@ export class RedgifsDownloader implements Downloader {
     }
   }
 
-  async download(post: RedditPost, targetDir: string, filenameBase: string): Promise<string> {
+  async download(post: RedditPost, targetDir: string, filenameBase: string): Promise<string[]> {
     let videoUrl: string | null = null;
 
     try {
@@ -80,14 +81,15 @@ export class RedgifsDownloader implements Downloader {
       const filePath = `${targetDir}/${filename}`;
 
       if (this.fsService.fileExists(filePath)) {
-        return filename; // Skip duplicate
+        return [filename]; // Skip duplicate
       }
 
       this.loggerService.log(`Downloading RedGifs/Gfycat: ${videoUrl}`, true);
 
       const headers: Record<string, string> = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-        'Referer': post.url,
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        Referer: post.url,
       };
 
       const response = await fetch(videoUrl, { headers });
@@ -101,7 +103,7 @@ export class RedgifsDownloader implements Downloader {
       const fileStream = this.fsService.createWriteStream(filePath);
 
       await pipeline(nodeStream, fileStream);
-      return filename;
+      return [filename];
     } catch (error: any) {
       this.loggerService.log(`ERROR: Failed to download RedGifs/Gfycat: ${error.message}`, true);
       throw error;
@@ -128,8 +130,9 @@ export class RedgifsDownloader implements Downloader {
 
       const response = await fetch(apiUrl, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          Authorization: `Bearer ${token}`,
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
         },
       });
 
@@ -166,7 +169,8 @@ export class RedgifsDownloader implements Downloader {
 
       const response = await fetch(apiUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
         },
       });
 

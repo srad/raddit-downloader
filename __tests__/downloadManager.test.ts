@@ -70,7 +70,7 @@ describe('DownloadManager', () => {
       download: jest.fn().mockImplementation(async (p, dir, f) => {
         const filePath = path.join(dir, 'image.jpg');
         await fs.writeFile(filePath, 'fake image content');
-        return 'image.jpg';
+        return ['image.jpg'];
       }),
       constructor: { name: 'MediaDownloader' },
     };

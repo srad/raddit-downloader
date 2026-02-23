@@ -4,9 +4,13 @@
     <header class="header">
       <div class="header-top d-flex align-items-center justify-content-between">
         <div class="d-flex align-items-center justify-content-end gap-2">
-          <div class="stat-item d-flex gap-2">
-            <span class="stat-label">Downloads:</span>
+          <div class="stat-item d-flex gap-2" :title="`Tracked downloads in database: ${stats.count}`">
+            <span class="stat-label">Records:</span>
             <span class="stat-value">{{ stats.count }}</span>
+          </div>
+          <div class="stat-item d-flex gap-2" :title="`Actual files on disk: ${stats.fileCount || 0}`">
+            <span class="stat-label">Files:</span>
+            <span class="stat-value">{{ stats.fileCount || 0 }}</span>
           </div>
           <div class="stat-item d-flex gap-2">
             <span class="stat-label">Total Size:</span>
@@ -72,7 +76,7 @@ const router = useRouter();
 const isRunning = computed(() => status.value === 'running');
 const history = ref<string[]>([]);
 const logsVisible = ref(false);
-const stats = ref({ count: 0, totalSize: 0 });
+const stats = ref({ count: 0, fileCount: 0, totalSize: 0 });
 
 const formatSize = (bytes: number) => {
   if (bytes === 0) return '0 B';

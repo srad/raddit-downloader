@@ -22,7 +22,7 @@ describe('GalleryDownloader', () => {
     } as any;
 
     mockMediaDownloader = {
-      download: jest.fn().mockResolvedValue('file_01.jpg'),
+      download: jest.fn().mockResolvedValue(['file_01.jpg']),
       canHandle: jest.fn(),
     } as any;
 
@@ -35,12 +35,7 @@ describe('GalleryDownloader', () => {
 
     mockConfig = {} as Config;
 
-    galleryDownloader = new GalleryDownloader(
-      mockFsService,
-      mockMediaDownloader,
-      mockLogger,
-      mockConfig
-    );
+    galleryDownloader = new GalleryDownloader(mockFsService, mockMediaDownloader, mockLogger, mockConfig);
   });
 
   describe('download', () => {
@@ -70,14 +65,14 @@ describe('GalleryDownloader', () => {
       } as any;
 
       mockMediaDownloader.download
-        .mockResolvedValueOnce('testbase_01.jpg')
-        .mockResolvedValueOnce('testbase_02.jpg')
-        .mockResolvedValueOnce('testbase_03.jpg');
+        .mockResolvedValueOnce(['testbase_01.jpg'])
+        .mockResolvedValueOnce(['testbase_02.jpg'])
+        .mockResolvedValueOnce(['testbase_03.jpg']);
 
       const result = await galleryDownloader.download(mockPost, '/downloads/r_pics', 'testbase');
 
       // Should return first filename
-      expect(result).toBe('testbase_01.jpg');
+      expect(result).toEqual(['testbase_01.jpg', 'testbase_02.jpg', 'testbase_03.jpg']);
 
       // Should call MediaDownloader 3 times, once for each item
       expect(mockMediaDownloader.download).toHaveBeenCalledTimes(3);
@@ -86,17 +81,17 @@ describe('GalleryDownloader', () => {
       expect(mockMediaDownloader.download).toHaveBeenCalledWith(
         expect.objectContaining({ url: 'https://i.redd.it/image1.jpg' }),
         '/downloads/r_pics',
-        'testbase_01'
+        'testbase_01',
       );
       expect(mockMediaDownloader.download).toHaveBeenCalledWith(
         expect.objectContaining({ url: 'https://i.redd.it/image2.jpg' }),
         '/downloads/r_pics',
-        'testbase_02'
+        'testbase_02',
       );
       expect(mockMediaDownloader.download).toHaveBeenCalledWith(
         expect.objectContaining({ url: 'https://i.redd.it/image3.jpg' }),
         '/downloads/r_pics',
-        'testbase_03'
+        'testbase_03',
       );
 
       // Should NOT create any subfolders
@@ -122,7 +117,7 @@ describe('GalleryDownloader', () => {
         },
       } as any;
 
-      mockMediaDownloader.download.mockResolvedValueOnce('testbase_01.mp4');
+      mockMediaDownloader.download.mockResolvedValueOnce(['testbase_01.mp4']);
 
       await galleryDownloader.download(mockPost, '/downloads/r_gifs', 'testbase');
 
@@ -132,7 +127,7 @@ describe('GalleryDownloader', () => {
           post_hint: 'hosted:video',
         }),
         '/downloads/r_gifs',
-        'testbase_01'
+        'testbase_01',
       );
     });
 
@@ -155,7 +150,7 @@ describe('GalleryDownloader', () => {
         },
       } as any;
 
-      mockMediaDownloader.download.mockResolvedValueOnce('testbase_01.gif');
+      mockMediaDownloader.download.mockResolvedValueOnce(['testbase_01.gif']);
 
       await galleryDownloader.download(mockPost, '/downloads/r_gifs', 'testbase');
 
@@ -165,7 +160,7 @@ describe('GalleryDownloader', () => {
           post_hint: 'image',
         }),
         '/downloads/r_gifs',
-        'testbase_01'
+        'testbase_01',
       );
     });
 
@@ -188,7 +183,7 @@ describe('GalleryDownloader', () => {
         },
       } as any;
 
-      mockMediaDownloader.download.mockResolvedValueOnce('testbase_01.jpg');
+      mockMediaDownloader.download.mockResolvedValueOnce(['testbase_01.jpg']);
 
       await galleryDownloader.download(mockPost, '/downloads/r_pics', 'testbase');
 
@@ -197,7 +192,7 @@ describe('GalleryDownloader', () => {
           url: 'https://i.redd.it/image.jpg?param=1&param2=2', // &amp; should be decoded to &
         }),
         '/downloads/r_pics',
-        'testbase_01'
+        'testbase_01',
       );
     });
 
@@ -227,18 +222,15 @@ describe('GalleryDownloader', () => {
       } as any;
 
       mockMediaDownloader.download
-        .mockResolvedValueOnce('testbase_01.jpg')
+        .mockResolvedValueOnce(['testbase_01.jpg'])
         .mockRejectedValueOnce(new Error('Unable to determine file type'))
-        .mockResolvedValueOnce('testbase_03.jpg');
+        .mockResolvedValueOnce(['testbase_03.jpg']);
 
       const result = await galleryDownloader.download(mockPost, '/downloads/r_pics', 'testbase');
 
-      expect(result).toBe('testbase_01.jpg');
+      expect(result).toEqual(['testbase_01.jpg', 'testbase_03.jpg']);
       expect(mockMediaDownloader.download).toHaveBeenCalledTimes(3);
-      expect(mockLogger.log).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to download gallery item'),
-        true
-      );
+      expect(mockLogger.log).toHaveBeenCalledWith(expect.stringContaining('Failed to download gallery item'), true);
     });
 
     it('should throw error if all gallery items fail', async () => {
@@ -262,9 +254,9 @@ describe('GalleryDownloader', () => {
 
       mockMediaDownloader.download.mockRejectedValue(new Error('Unable to determine file type'));
 
-      await expect(
-        galleryDownloader.download(mockPost, '/downloads/r_pics', 'testbase')
-      ).rejects.toThrow('Failed to download any gallery items');
+      await expect(galleryDownloader.download(mockPost, '/downloads/r_pics', 'testbase')).rejects.toThrow(
+        'Failed to download any gallery items',
+      );
     });
 
     it('should throw error if gallery metadata is missing', async () => {
@@ -280,9 +272,9 @@ describe('GalleryDownloader', () => {
         over_18: false,
       } as any;
 
-      await expect(
-        galleryDownloader.download(mockPost, '/downloads/r_pics', 'testbase')
-      ).rejects.toThrow('Gallery post missing metadata');
+      await expect(galleryDownloader.download(mockPost, '/downloads/r_pics', 'testbase')).rejects.toThrow(
+        'Gallery post missing metadata',
+      );
     });
 
     it('should skip gallery items with no valid source URL', async () => {
@@ -308,16 +300,13 @@ describe('GalleryDownloader', () => {
         },
       } as any;
 
-      mockMediaDownloader.download.mockResolvedValueOnce('testbase_01.jpg');
+      mockMediaDownloader.download.mockResolvedValueOnce(['testbase_01.jpg']);
 
       const result = await galleryDownloader.download(mockPost, '/downloads/r_pics', 'testbase');
 
-      expect(result).toBe('testbase_01.jpg');
+      expect(result).toEqual(['testbase_01.jpg']);
       expect(mockMediaDownloader.download).toHaveBeenCalledTimes(1);
-      expect(mockLogger.log).toHaveBeenCalledWith(
-        expect.stringContaining('No valid source URL'),
-        true
-      );
+      expect(mockLogger.log).toHaveBeenCalledWith(expect.stringContaining('No valid source URL'), true);
     });
 
     it('should use zero-padded index in filenames', async () => {
@@ -335,30 +324,18 @@ describe('GalleryDownloader', () => {
           items: Array.from({ length: 12 }, (_, i) => ({ media_id: `id${i}`, id: i })),
         },
         media_metadata: Object.fromEntries(
-          Array.from({ length: 12 }, (_, i) => [`id${i}`, { s: { u: `https://i.redd.it/image${i}.jpg` } }])
+          Array.from({ length: 12 }, (_, i) => [`id${i}`, { s: { u: `https://i.redd.it/image${i}.jpg` } }]),
         ),
       } as any;
 
-      mockMediaDownloader.download.mockResolvedValue('file.jpg');
+      mockMediaDownloader.download.mockResolvedValue(['file.jpg']);
 
       await galleryDownloader.download(mockPost, '/downloads/r_pics', 'testbase');
 
       // Check that single-digit indexes are zero-padded
-      expect(mockMediaDownloader.download).toHaveBeenCalledWith(
-        expect.anything(),
-        '/downloads/r_pics',
-        'testbase_01'
-      );
-      expect(mockMediaDownloader.download).toHaveBeenCalledWith(
-        expect.anything(),
-        '/downloads/r_pics',
-        'testbase_09'
-      );
-      expect(mockMediaDownloader.download).toHaveBeenCalledWith(
-        expect.anything(),
-        '/downloads/r_pics',
-        'testbase_10'
-      );
+      expect(mockMediaDownloader.download).toHaveBeenCalledWith(expect.anything(), '/downloads/r_pics', 'testbase_01');
+      expect(mockMediaDownloader.download).toHaveBeenCalledWith(expect.anything(), '/downloads/r_pics', 'testbase_09');
+      expect(mockMediaDownloader.download).toHaveBeenCalledWith(expect.anything(), '/downloads/r_pics', 'testbase_10');
     });
   });
 

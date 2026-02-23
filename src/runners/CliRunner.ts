@@ -55,7 +55,7 @@ export class CliRunner implements Runner {
 
     // Check for special commands before normal operation
     // Handle --find-duplicates command
-    const findDuplicatesArg = args.find(arg => arg.startsWith('--find-duplicates'));
+    const findDuplicatesArg = args.find((arg) => arg.startsWith('--find-duplicates'));
     if (findDuplicatesArg) {
       await this.handleFindDuplicates(phashService, loggerService, findDuplicatesArg);
       dbService.close();
@@ -117,21 +117,24 @@ export class CliRunner implements Runner {
     state: StateService,
     apiService: RedditApiService,
     loggerService: LoggerService,
-    orchestrator: DownloadOrchestrator
+    orchestrator: DownloadOrchestrator,
   ) {
     async function downloadSubredditBatch(target: string, lastPostId: string = '') {
       try {
         await orchestrator.downloadBatch({
-            target,
-            logger: loggerService,
-            options:  { delayBetweenPosts: 250 },
-            lastPostId
+          target,
+          logger: loggerService,
+          options: { delayBetweenPosts: 250 },
+          lastPostId,
         });
 
         // Log progress after each post (handled inside the orchestrator now)
         const [, downloaded] = state.getPostsRemaining();
         const total = state.numberOfPosts >= ALL_POSTS ? 'all' : state.numberOfPosts;
-        loggerService.log(`Still downloading posts from ${chalk.cyan(state.getCurrentSubreddit())}... (${downloaded}/${total})`, false);
+        loggerService.log(
+          `Still downloading posts from ${chalk.cyan(state.getCurrentSubreddit())}... (${downloaded}/${total})`,
+          false,
+        );
 
         handleDownloadComplete();
       } catch (err: unknown) {
@@ -144,10 +147,10 @@ export class CliRunner implements Runner {
     function handleDownloadComplete() {
       const endTime = new Date();
       const startTime = state.startTime || new Date();
-      
+
       loggerService.log(`🎉 All done downloading posts from ${state.getCurrentSubreddit()}!`, false);
       loggerService.log(`Stats: ${JSON.stringify(state.downloadedPosts)}`, true);
-      
+
       state.resetDownloadStats();
 
       if (state.nextSubreddit()) {
@@ -160,7 +163,7 @@ export class CliRunner implements Runner {
           downloadSubredditBatch(state.getCurrentSubreddit());
         }, state.timeBetweenRuns);
       } else {
-         start();
+        start();
       }
     }
 
@@ -188,10 +191,10 @@ export class CliRunner implements Runner {
   private async handleFindDuplicates(
     phashService: PhashService,
     loggerService: LoggerService,
-    arg: string
+    arg: string,
   ): Promise<void> {
-    // Parse threshold from argument (e.g., --find-duplicates=8)
-    let threshold = 5; // Default
+    // Parse threshold from argument (e.g., --find-duplicates=85)
+    let threshold = 85; // Default percentage
     if (arg.includes('=')) {
       const thresholdStr = arg.split('=')[1];
       const parsed = parseInt(thresholdStr, 10);
@@ -200,7 +203,7 @@ export class CliRunner implements Runner {
       }
     }
 
-    console.log(chalk.cyan(`\nSearching for duplicates (threshold: ${threshold} bits)...\n`));
+    console.log(chalk.cyan(`\nSearching for duplicates (min similarity: ${threshold}%)...\n`));
 
     const result = await phashService.findDuplicates(threshold);
 
@@ -209,20 +212,24 @@ export class CliRunner implements Runner {
       return;
     }
 
-    console.log(chalk.yellow(`Found ${result.totalGroups} duplicate groups (${result.totalDuplicates} files total):\n`));
+    console.log(
+      chalk.yellow(`Found ${result.totalGroups} duplicate groups (${result.totalDuplicates} files total):\n`),
+    );
 
     result.groups.forEach((group, index) => {
       const groupNum = index + 1;
       const typeLabel = group.type === 'video' ? '📹' : group.type === 'image' ? '🖼️' : '📁';
 
-      console.log(chalk.bold(`${typeLabel} Group ${groupNum} (${group.files.length} files, avg distance: ${group.avgDistance} bits):`));
+      console.log(
+        chalk.bold(`${typeLabel} Group ${groupNum} (${group.files.length} files, similarity: ${group.avgDistance}%):`),
+      );
 
       if (group.confidence !== undefined) {
         const confidencePercent = Math.round(group.confidence * 100);
         console.log(chalk.gray(`  Confidence: ${confidencePercent}% match`));
       }
 
-      group.files.forEach(file => {
+      group.files.forEach((file) => {
         console.log(`  - ${chalk.cyan(file.path)} (Post: ${file.post_id})`);
         console.log(`    ${chalk.gray(file.url)}`);
       });
@@ -240,7 +247,7 @@ export class CliRunner implements Runner {
     phashService: PhashService,
     dbService: DatabaseService,
     loggerService: LoggerService,
-    fsService: FileSystemService
+    fsService: FileSystemService,
   ): Promise<void> {
     console.log(chalk.cyan('\nGenerating perceptual hashes for existing downloads...\n'));
 

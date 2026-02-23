@@ -10,6 +10,7 @@ import { WebRunner } from '../src/runners/WebRunner';
 import { container } from 'tsyringe';
 import { DatabaseService } from '../src/services/DatabaseService';
 import { ConfigService } from '../src/services/ConfigService';
+import { CONFIG_TOKEN } from '../src/config/tokens';
 
 // Set DATA_DIR to a temp location
 process.env.DATA_DIR = path.join(__dirname, 'temp_test_data');
@@ -18,6 +19,7 @@ process.env.DATA_DIR = path.join(__dirname, 'temp_test_data');
 const mockDbService = {
   getSubredditHistory: jest.fn().mockResolvedValue([]),
   getAllSettings: jest.fn().mockResolvedValue({}),
+  getDownloads: jest.fn().mockResolvedValue([]),
 };
 
 describe('WebRunner Port Selection', () => {
@@ -42,6 +44,9 @@ describe('WebRunner Port Selection', () => {
     container.register(DatabaseService, { useValue: mockDbService as any });
     // Register real ConfigService
     container.register(ConfigService, { useClass: ConfigService });
+    // Register mock Config to disable background tasks
+    container.register(CONFIG_TOKEN, { useValue: { testingMode: true } });
+
     runner = new WebRunner();
   });
 

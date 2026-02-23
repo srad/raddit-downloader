@@ -20,7 +20,7 @@ export class GalleryDownloader implements Downloader {
     return getPostType(post) === PostType.Gallery;
   }
 
-  async download(post: RedditPost, targetDir: string, filenameBase: string): Promise<string> {
+  async download(post: RedditPost, targetDir: string, filenameBase: string): Promise<string[]> {
     if (!post.media_metadata || !post.gallery_data) {
       this.loggerService.log(`Gallery post missing metadata: ${post.title}`, true);
       throw new Error('Gallery post missing metadata');
@@ -29,9 +29,9 @@ export class GalleryDownloader implements Downloader {
     this.loggerService.log(`Gallery download: ${post.title} (${post.gallery_data.items.length} items)`, true);
 
     let index = 0;
-    let firstFilename = '';
+    const filenames: string[] = [];
 
-    for (const { media_id, id } of post.gallery_data.items) {
+    for (const { media_id } of post.gallery_data.items) {
       const media = post.media_metadata[media_id];
       if (!media || !media.s) continue;
 
@@ -74,12 +74,8 @@ export class GalleryDownloader implements Downloader {
 
       try {
         this.loggerService.log(`Gallery item ${index + 1}/${post.gallery_data.items.length}: ${downloadUrl}`, true);
-        const downloadedFilename = await this.mediaDownloader.download(miniPost, targetDir, itemFilenameBase);
-
-        // Capture first filename for database tracking
-        if (index === 0) {
-          firstFilename = downloadedFilename;
-        }
+        const downloadedFilenames = await this.mediaDownloader.download(miniPost, targetDir, itemFilenameBase);
+        filenames.push(...downloadedFilenames);
 
         index++;
       } catch (error: any) {
@@ -89,10 +85,10 @@ export class GalleryDownloader implements Downloader {
       }
     }
 
-    if (!firstFilename) {
+    if (filenames.length === 0) {
       throw new Error('Failed to download any gallery items');
     }
 
-    return firstFilename;
+    return filenames;
   }
 }

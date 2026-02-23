@@ -20,12 +20,12 @@ export class TextDownloader implements Downloader {
     return getPostType(post) === PostType.Self;
   }
 
-  async download(post: RedditPost, targetDir: string, filenameBase: string): Promise<string> {
+  async download(post: RedditPost, targetDir: string, filenameBase: string): Promise<string[]> {
     const filename = `${filenameBase}.txt`;
     const filePath = `${targetDir}/${filename}`;
 
     if (this.fsService.fileExists(filePath)) {
-      return filename;
+      return [filename];
     }
 
     let content = `${post.title} by ${post.author}\n\n`;
@@ -58,6 +58,6 @@ export class TextDownloader implements Downloader {
     }
 
     await this.fsService.writeFile(filePath, content);
-    return filename;
+    return [filename];
   }
 }

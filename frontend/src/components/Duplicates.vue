@@ -43,14 +43,14 @@ const scanProgress = ref({
   show: false,
   processed: 0,
   total: 0,
-  percentage: 0
+  percentage: 0,
 });
 
 const duplicateGroups = ref<DuplicateGroupData[]>([]);
 const selectedPaths = ref(new Set<string>());
 
 // Filters
-const threshold = ref(5);
+const threshold = ref(85);
 const contentTypeFilter = ref<'all' | 'image' | 'video'>('all');
 const nameFilter = ref('');
 
@@ -75,7 +75,7 @@ const phashProgress = ref<PhashProgress>({
 });
 
 // --- Computed ---
-const thresholdLabel = computed(() => `${threshold.value} bits`);
+const thresholdLabel = computed(() => `${threshold.value}% similarity`);
 
 const currentPathFilter = computed(() => (route.query.path as string) || null);
 
@@ -132,13 +132,13 @@ const loadDuplicates = async () => {
   scanProgress.value = { show: true, processed: 0, total: 0, percentage: 0 };
   visibleLimit.value = 20;
   selectedPaths.value.clear();
-  
+
   try {
     let url = `${apiBase}/api/duplicates?threshold=${threshold.value}`;
     if (currentPathFilter.value) {
       url += `&path=${encodeURIComponent(currentPathFilter.value)}`;
     }
-    
+
     const response = await fetch(url);
     if (response.status === 499) return;
     const data: DuplicatesResponse = await response.json();
@@ -146,7 +146,11 @@ const loadDuplicates = async () => {
     duplicateGroups.value = (data.groups || []).map((g, idx) => ({
       ...g,
       // Create a unique ID for this group based on file IDs
-      id: g.files.map((f: any) => f.id).sort().join('-') || `group-${idx}-${Date.now()}`
+      id:
+        g.files
+          .map((f: any) => f.id)
+          .sort()
+          .join('-') || `group-${idx}-${Date.now()}`,
     }));
   } catch (error) {
     console.error('Failed to load duplicates:', error);
@@ -161,10 +165,10 @@ const debouncedLoadDuplicates = useDebounceFn(loadDuplicates, 500);
 const generatePhashes = async () => {
   try {
     const body = currentPathFilter.value ? { path: currentPathFilter.value } : {};
-    const response = await fetch(`${apiBase}/api/generate-phash`, { 
+    const response = await fetch(`${apiBase}/api/generate-phash`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     });
     const data = await response.json();
 
@@ -178,9 +182,9 @@ const generatePhashes = async () => {
 };
 
 const deleteFile = async (fileId: string | number, groupId: string) => {
-  const groupIndex = duplicateGroups.value.findIndex(g => g.id === groupId);
+  const groupIndex = duplicateGroups.value.findIndex((g) => g.id === groupId);
   const group = duplicateGroups.value[groupIndex];
-  const file = group?.files.find(f => f.id === fileId);
+  const file = group?.files.find((f) => f.id === fileId);
   if (!file) return;
 
   if (!confirm(`Permanently delete "${file.filename}"?`)) return;
@@ -220,8 +224,8 @@ const toggleSelection = (path: string) => {
 };
 
 const selectDuplicates = () => {
-  duplicateGroups.value.forEach(group => {
-    group.files.slice(1).forEach(file => {
+  duplicateGroups.value.forEach((group) => {
+    group.files.slice(1).forEach((file) => {
       selectedPaths.value.add(file.path);
     });
   });
@@ -257,7 +261,7 @@ const clearPathFilter = () => {
 
 // Lightbox Logic
 const openImageInLightbox = (groupId: string, fileIndex: number) => {
-  currentGroupIndex.value = filteredGroups.value.findIndex(g => g.id === groupId);
+  currentGroupIndex.value = filteredGroups.value.findIndex((g) => g.id === groupId);
   lightboxIndex.value = fileIndex;
   lightboxOpen.value = true;
 };
@@ -330,9 +334,12 @@ watch(threshold, () => {
   debouncedLoadDuplicates();
 });
 
-watch(() => route.query.path, () => {
-  loadDuplicates();
-});
+watch(
+  () => route.query.path,
+  () => {
+    loadDuplicates();
+  },
+);
 
 useInfiniteScroll(
   scrollContainer,
@@ -344,17 +351,29 @@ useInfiniteScroll(
 </script>
 <template>
   <main class="duplicates-container d-flex flex-column h-100 p-2 overflow-hidden">
-    <div v-if="currentPathFilter" class="alert alert-secondary d-flex align-items-center justify-content-between py-2 px-3 mb-2 border-0">
+    <div
+      v-if="currentPathFilter"
+      class="alert alert-secondary d-flex align-items-center justify-content-between py-2 px-3 mb-2 border-0"
+    >
       <div class="small d-flex align-items-center gap-2">
         <span class="opacity-75">Filtering folder:</span>
         <strong class="text-primary">{{ currentPathFilter }}</strong>
       </div>
-      <button class="btn btn-link btn-sm p-0 text-decoration-none" @click="clearPathFilter">&times; Clear filter</button>
+      <button class="btn btn-link btn-sm p-0 text-decoration-none" @click="clearPathFilter">
+        &times; Clear filter
+      </button>
     </div>
 
-    <div v-if="phashProgress.show" class="phash-banner alert alert-primary d-flex flex-column align-items-stretch mb-3 bg-gradient text-white border-0 py-2">
+    <div
+      v-if="phashProgress.show"
+      class="phash-banner alert alert-primary d-flex flex-column align-items-stretch mb-3 bg-gradient text-white border-0 py-2"
+    >
       <div class="d-flex align-items-center gap-2 mb-2">
-        <span v-if="phashProgress.status === 'processing'" class="spinner-border spinner-border-sm" role="status"></span>
+        <span
+          v-if="phashProgress.status === 'processing'"
+          class="spinner-border spinner-border-sm"
+          role="status"
+        ></span>
         <span v-if="phashProgress.status === 'processing'" class="small">
           Generating hashes... ({{ phashProgress.processed }} / {{ phashProgress.total }})
         </span>
@@ -363,13 +382,15 @@ useInfiniteScroll(
           <span v-if="phashProgress.skipped > 0">(skipped {{ phashProgress.skipped }})</span>
         </span>
       </div>
-      <div class="progress" style="height: 6px;">
-        <div 
-          class="progress-bar bg-white" 
-          role="progressbar" 
-          :style="{ width: (phashProgress.total > 0 ? (phashProgress.processed / phashProgress.total * 100) : 0) + '%' }"
-          :aria-valuenow="phashProgress.processed" 
-          :aria-valuemin="0" 
+      <div class="progress" style="height: 6px">
+        <div
+          class="progress-bar bg-white"
+          role="progressbar"
+          :style="{
+            width: (phashProgress.total > 0 ? (phashProgress.processed / phashProgress.total) * 100 : 0) + '%',
+          }"
+          :aria-valuenow="phashProgress.processed"
+          :aria-valuemin="0"
           :aria-valuemax="phashProgress.total"
         ></div>
       </div>
@@ -379,32 +400,44 @@ useInfiniteScroll(
       <div class="fw-bold text-nowrap text-uppercase letter-spacing-1 small opacity-75">Duplicates</div>
 
       <div class="d-flex gap-2 align-items-center flex-wrap flex-grow-1">
-        <select v-model="contentTypeFilter" class="form-select form-select-sm" style="width: 120px;">
+        <select v-model="contentTypeFilter" class="form-select form-select-sm" style="width: 120px">
           <option value="all">All Types</option>
           <option value="image">Images</option>
           <option value="video">Videos</option>
         </select>
-        
-        <input 
-          v-model="nameFilter" 
-          type="search" 
-          placeholder="Filter..." 
+
+        <input
+          v-model="nameFilter"
+          type="search"
+          placeholder="Filter..."
           class="form-control form-control-sm"
-          style="width: 180px;"
+          style="width: 180px"
         />
 
-        <div class="d-flex align-items-center gap-2 flex-grow-1 mx-2" style="max-width: 300px;">
-          <span class="small text-muted text-nowrap">Diff: {{ thresholdLabel }}</span>
-          <input id="threshold" v-model.number="threshold" type="range" class="form-range" min="0" max="15" />
+        <div class="d-flex align-items-center gap-2 flex-grow-1 mx-2" style="max-width: 300px">
+          <span class="small text-muted text-nowrap">{{ thresholdLabel }}</span>
+          <input
+            id="threshold"
+            v-model.number="threshold"
+            type="range"
+            class="form-range"
+            min="50"
+            max="100"
+            step="1"
+          />
         </div>
       </div>
 
       <div class="d-flex gap-2">
         <template v-if="selectedPaths.size > 0">
-          <button @click="deleteSelected" class="btn btn-sm btn-danger px-3">Delete Selected ({{ selectedPaths.size }})</button>
+          <button @click="deleteSelected" class="btn btn-sm btn-danger px-3">
+            Delete Selected ({{ selectedPaths.size }})
+          </button>
         </template>
         <template v-else>
-          <button @click="selectDuplicates" class="btn btn-sm btn-outline-primary" v-if="filteredGroups.length > 0">Select Duplicates</button>
+          <button @click="selectDuplicates" class="btn btn-sm btn-outline-primary" v-if="filteredGroups.length > 0">
+            Select Duplicates
+          </button>
         </template>
         <button @click="loadDuplicates" class="btn btn-sm btn-primary px-3" :disabled="loading">Scan</button>
         <button @click="generatePhashes" class="btn btn-sm btn-outline-secondary px-3">Re-Hash</button>
@@ -423,13 +456,13 @@ useInfiniteScroll(
           </div>
           <button class="btn btn-sm btn-outline-dark" @click="cancelScan">Cancel</button>
         </div>
-        <div v-if="scanProgress.show" class="progress" style="height: 6px;">
-          <div 
-            class="progress-bar progress-bar-striped progress-bar-animated" 
-            role="progressbar" 
+        <div v-if="scanProgress.show" class="progress" style="height: 6px">
+          <div
+            class="progress-bar progress-bar-striped progress-bar-animated"
+            role="progressbar"
             :style="{ width: scanProgress.percentage + '%' }"
-            :aria-valuenow="scanProgress.percentage" 
-            :aria-valuemin="0" 
+            :aria-valuenow="scanProgress.percentage"
+            :aria-valuemin="0"
             :aria-valuemax="100"
           ></div>
         </div>
@@ -437,7 +470,8 @@ useInfiniteScroll(
 
       <template v-else>
         <div v-if="filteredGroups.length > 0" class="px-2 mb-2 text-muted small">
-          Found <strong>{{ filteredGroups.length }}</strong> groups with <strong>{{ totalDuplicatesCount }}</strong> files
+          Found <strong>{{ filteredGroups.length }}</strong> groups with
+          <strong>{{ totalDuplicatesCount }}</strong> files
         </div>
 
         <div v-if="duplicateGroups.length === 0" class="text-center p-5 text-muted">
